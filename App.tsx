@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Users, 
   LayoutDashboard, 
@@ -14,7 +14,8 @@ import {
   TrendingDown,
   Minus,
   X,
-  ClipboardList
+  ClipboardList,
+  FileSpreadsheet
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -23,9 +24,7 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  BarChart,
-  Bar
+  ResponsiveContainer
 } from 'recharts';
 
 import { Classroom, ExamResult, Student, StudentWithStats, ViewState, ExamDefinition } from './types';
@@ -158,12 +157,18 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({ isOpen, onClose, onConfirm,
 
 interface BatchImportModalProps {
   isOpen: boolean;
+  mode: 'student' | 'result';
   onClose: () => void;
   onProcess: (text: string) => void;
 }
 
-const BatchImportModal: React.FC<BatchImportModalProps> = ({ isOpen, onClose, onProcess }) => {
+const BatchImportModal: React.FC<BatchImportModalProps> = ({ isOpen, mode, onClose, onProcess }) => {
   const [text, setText] = useState('');
+
+  // Reset text when mode changes or modal opens
+  useEffect(() => {
+    if (isOpen) setText('');
+  }, [isOpen, mode]);
 
   if (!isOpen) return null;
 
@@ -172,29 +177,51 @@ const BatchImportModal: React.FC<BatchImportModalProps> = ({ isOpen, onClose, on
       <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl border border-gray-700 flex flex-col h-[80vh]">
          <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900">
             <div className="flex items-center gap-2">
-                <ClipboardList className="text-indigo-400" />
-                <h3 className="text-lg font-bold text-white">Hızlı Öğrenci Girişi</h3>
+                {mode === 'student' ? <ClipboardList className="text-indigo-400" /> : <FileSpreadsheet className="text-green-400" />}
+                <h3 className="text-lg font-bold text-white">{mode === 'student' ? 'Hızlı Öğrenci Girişi' : 'Hızlı Sonuç Girişi'}</h3>
             </div>
             <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
          </div>
          <div className="p-4 flex-1 flex flex-col gap-3 bg-gray-800 overflow-y-auto">
             <div className="bg-gray-900/50 p-3 rounded border border-gray-700 text-sm text-gray-300 space-y-2">
                 <p>Excel'den veya başka bir listeden verileri kopyalayıp aşağıdaki alana yapıştırın.</p>
-                <div className="flex flex-col gap-1">
-                    <span className="font-semibold text-gray-400 text-xs uppercase">Format:</span>
-                    <div className="font-mono bg-black/30 p-2 rounded text-indigo-300 text-xs">
-                        Ad Soyad Sınıf
+                
+                {mode === 'student' ? (
+                  <>
+                    <div className="flex flex-col gap-1">
+                        <span className="font-semibold text-gray-400 text-xs uppercase">Format:</span>
+                        <div className="font-mono bg-black/30 p-2 rounded text-indigo-300 text-xs">
+                            Ad Soyad Sınıf
+                        </div>
                     </div>
-                </div>
-                <p className="text-xs text-gray-500">
-                    * Veriler boşluk veya tab ile ayrılabilir.<br/>
-                    * Eğer sınıf sistemde yoksa otomatik oluşturulur.<br/>
-                    * Örnek: <span className="font-mono text-gray-300">Ali Yılmaz 8/A</span>
-                </p>
+                    <p className="text-xs text-gray-500">
+                        * Sistemde aynı isimde öğrenci varsa yeni kayıt açılmaz.<br/>
+                        * Öğrencinin sınıfı farklıysa güncellenir.<br/>
+                        * Örnek: <span className="font-mono text-gray-300">Ali Yılmaz 8/A</span>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                     <div className="flex flex-col gap-1">
+                        <span className="font-semibold text-gray-400 text-xs uppercase">Format:</span>
+                        <div className="font-mono bg-black/30 p-2 rounded text-green-300 text-xs">
+                            SınavAdı ÖğrenciAdıSoyadı Doğru Yanlış
+                        </div>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                        * Sütunlar: Sınav Adı | Öğrenci | D | Y<br/>
+                        * <strong>Excel'den kopyalamanız tavsiye edilir (daha iyi ayırt eder).</strong><br/>
+                        * Veriler sistemde varsa güncellenir.<br/>
+                        * Öğrenci sistemde kayıtlı olmalıdır (Sınıf bilgisine gerek yok).<br/>
+                        * <strong>Otomatik Girmedi:</strong> Listede adı olmayan ancak ilgili denemeye katılan sınıflardaki öğrenciler otomatik "GİRMEDİ" işaretlenir.<br/>
+                        * Örnek: <span className="font-mono text-gray-300">LGS Deneme 1 Ahmet Demir 8 2</span>
+                    </p>
+                  </>
+                )}
             </div>
             <textarea 
               className="flex-1 w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white font-mono text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
-              placeholder="Ahmet Yılmaz 8/A&#10;Ayşe Demir 8/B&#10;Mehmet Can Kaya 8/C..."
+              placeholder={mode === 'student' ? "Ahmet Yılmaz 8/A..." : "Deneme 1 Ahmet Yılmaz 8 2..."}
               value={text}
               onChange={e => setText(e.target.value)}
             />
@@ -244,6 +271,7 @@ function sortData<T>(data: T[], config: SortConfig<T>): T[] {
 function App() {
   // --- STATE ---
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [view, setView] = useState<ViewState>('DASHBOARD');
   
   // Selection State
@@ -266,6 +294,7 @@ function App() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [batchModalMode, setBatchModalMode] = useState<'student' | 'result'>('student');
 
   // Generic Modals
   const [inputModalConfig, setInputModalConfig] = useState<{ 
@@ -297,21 +326,76 @@ function App() {
 
   const [studentChartMetric, setStudentChartMetric] = useState<'net' | 'correct'>('net');
 
+  // --- NAVIGATION HISTORY LOGIC ---
+
+  // Handle navigation requests
+  const handleNavigation = useCallback((newView: ViewState, params?: { studentId?: string, classId?: string, examDefId?: string }) => {
+    // 1. Update State variables based on params
+    if (params?.studentId) setSelectedStudentId(params.studentId);
+    if (params?.classId) setSelectedClassId(params.classId);
+    if (params?.examDefId) setSelectedExamDefId(params.examDefId);
+
+    // 2. Push state to history
+    window.history.pushState({ 
+        view: newView, 
+        selectedStudentId: params?.studentId || selectedStudentId,
+        selectedClassId: params?.classId || selectedClassId,
+        selectedExamDefId: params?.examDefId || selectedExamDefId
+    }, '');
+
+    // 3. Update View
+    setView(newView);
+  }, [selectedStudentId, selectedClassId, selectedExamDefId]);
+
+  // Handle Back Button (PopState)
+  useEffect(() => {
+    // Initial State replacement to ensure we have a state to pop to
+    window.history.replaceState({ view: 'DASHBOARD' }, '');
+
+    const handlePopState = (event: PopStateEvent) => {
+        if (event.state) {
+            setView(event.state.view || 'DASHBOARD');
+            if (event.state.selectedStudentId) setSelectedStudentId(event.state.selectedStudentId);
+            if (event.state.selectedClassId) setSelectedClassId(event.state.selectedClassId);
+            if (event.state.selectedExamDefId) setSelectedExamDefId(event.state.selectedExamDefId);
+        } else {
+            setView('DASHBOARD');
+        }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // UI Back Button Handler (Uses History)
+  const handleBack = () => {
+    window.history.back();
+  };
+
+
   // --- INITIAL LOAD ---
   useEffect(() => {
     const initData = async () => {
       setIsLoading(true);
-      const data = await fetchAllData();
-      setStudents(data.students);
-      setClasses(data.classes);
-      setExams(data.exams);
-      setExamDefinitions(data.examDefinitions);
-      setIsLoading(false);
+      setErrorMsg(null);
+      try {
+        const data = await fetchAllData();
+        setStudents(data.students);
+        setClasses(data.classes);
+        setExams(data.exams);
+        setExamDefinitions(data.examDefinitions);
+      } catch (e: any) {
+        if (e.code === 'permission-denied') {
+            setErrorMsg("Missing or insufficient permissions.");
+        } else {
+            setErrorMsg("Veriler yüklenirken bir hata oluştu.");
+        }
+      } finally {
+         setIsLoading(false);
+      }
     };
     initData();
   }, []);
-
-  // Removed automatic saveData effects because we now use explicit API calls
 
   // --- DERIVED DATA ---
   const studentsWithStats: StudentWithStats[] = useMemo(() => {
@@ -378,6 +462,7 @@ function App() {
     const totalStudents = students.length;
     const effectiveExams = exams.filter(e => e.status !== 'MISSING');
     const totalExams = effectiveExams.length;
+    const totalExamDefinitions = examDefinitions.length;
     
     const globalTotalNet = effectiveExams.reduce((sum, e) => sum + e.net, 0);
     const globalAvgNet = totalExams > 0 ? (globalTotalNet / totalExams).toFixed(2) : '0.00';
@@ -397,7 +482,7 @@ function App() {
         };
     }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // Keep all for scroll
 
-    return { totalStudents, totalExams, globalAvgNet, examStats };
+    return { totalStudents, totalExams, totalExamDefinitions, globalAvgNet, examStats };
   }, [students, exams, classes, examDefinitions]);
 
   // --- HANDLERS ---
@@ -406,11 +491,6 @@ function App() {
         key,
         direction: config.key === key && config.direction === 'asc' ? 'desc' : 'asc'
     });
-  };
-
-  const navigateToStudent = (id: string) => {
-    setSelectedStudentId(id);
-    setView('STUDENT_DETAIL');
   };
 
   const handleAddClass = () => {
@@ -461,13 +541,19 @@ function App() {
   };
 
   const handleSaveStudent = async (studentData: Omit<Student, 'id'> | Student) => {
-    if ('id' in studentData) {
-        await apiUpdateStudent(studentData);
-        setStudents(prev => prev.map(s => s.id === studentData.id ? studentData : s));
+    // Sanitize targetCorrect to ensure no undefined values are sent to Firebase
+    const cleanData = {
+        ...studentData,
+        targetCorrect: studentData.targetCorrect === undefined || isNaN(studentData.targetCorrect as number) ? 6 : studentData.targetCorrect
+    };
+
+    if ('id' in cleanData) {
+        await apiUpdateStudent(cleanData as Student);
+        setStudents(prev => prev.map(s => s.id === cleanData.id ? cleanData as Student : s));
     } else {
-        const newStudent = { ...studentData, id: Date.now().toString() };
-        await apiAddStudent(newStudent);
-        setStudents(prev => [...prev, newStudent]);
+        const newStudent = { ...cleanData, id: Date.now().toString() };
+        await apiAddStudent(newStudent as Student);
+        setStudents(prev => [...prev, newStudent as Student]);
     }
   };
 
@@ -480,7 +566,7 @@ function App() {
             // Optimistic update locally
             setStudents(prev => prev.filter(s => s.id !== id));
             setExams(prev => prev.filter(e => e.studentId !== id));
-            setView('STUDENTS');
+            handleNavigation('STUDENTS');
             
             // Delete from Cloud
             await apiDeleteStudent(id);
@@ -568,33 +654,32 @@ function App() {
         onConfirm: async () => {
             await apiDeleteExamDefinition(id);
             setExamDefinitions(prev => prev.filter(e => e.id !== id));
+            handleNavigation('EXAMS');
         }
     });
   };
 
-  // --- BATCH IMPORT HANDLER ---
-  const handleBatchImport = async (text: string) => {
+  // --- BATCH IMPORT HANDLER (STUDENT) ---
+  const handleBatchStudentImport = async (text: string) => {
     setIsLoading(true);
     const lines = text.split('\n').filter(l => l.trim().length > 0);
     const newStudentsPayload: any[] = [];
     const classNamesFound = new Set<string>();
 
+    // 1. Parse Text
     lines.forEach(line => {
-        // Splitting logic: Try tab first, then regex for spaces
         let parts = line.split('\t').map(p => p.trim()).filter(p => p);
         if (parts.length < 2) {
             parts = line.trim().split(/\s+/);
         }
 
         if (parts.length >= 2) {
-             const className = parts.pop()!; // Last element is always Class
-             const surname = parts.length > 1 ? parts.pop()! : ''; // Second last is Surname if exists
-             const name = parts.join(' ');   // Rest is Name
+             const className = parts.pop()!;
+             const surname = parts.length > 1 ? parts.pop()! : '';
+             const name = parts.join(' ');
              
              if (name && className) {
                  classNamesFound.add(className);
-                 // If no surname found (2 parts total: Name Class), use empty or handle appropriately
-                 // Ideally format is Name Surname Class
                  newStudentsPayload.push({ name, surname, className });
              }
         }
@@ -607,7 +692,7 @@ function App() {
     }
 
     try {
-        // 1. Handle Classes
+        // 2. Handle Classes (Create missing ones)
         const tempClasses = [...classes];
         const createdClasses = [];
         
@@ -625,973 +710,1151 @@ function App() {
             setClasses(tempClasses);
         }
 
-        // 2. Add Students
-        const addedStudents = [];
+        // 3. Process Students (Add or Update Class)
+        const tempStudents = [...students];
+        let addedCount = 0;
+        let updatedCount = 0;
+        let skippedCount = 0;
+
         for (const s of newStudentsPayload) {
             const cls = tempClasses.find(c => c.name.toLowerCase() === s.className.toLowerCase());
+            
             if (cls) {
-                const newStudent = {
-                    id: Date.now().toString() + Math.floor(Math.random() * 10000).toString(),
-                    name: s.name,
-                    surname: s.surname,
-                    classroomId: cls.id,
-                    targetCorrect: 6
-                };
-                await apiAddStudent(newStudent);
-                addedStudents.push(newStudent);
+                // Check if student exists by Name+Surname (Case Insensitive & Locale Aware)
+                const existingStudentIndex = tempStudents.findIndex(st => 
+                    st.name.toLocaleLowerCase('tr') === s.name.toLocaleLowerCase('tr') && 
+                    st.surname.toLocaleLowerCase('tr') === s.surname.toLocaleLowerCase('tr')
+                );
+
+                if (existingStudentIndex !== -1) {
+                    const existingStudent = tempStudents[existingStudentIndex];
+                    // If exists, check Class
+                    if (existingStudent.classroomId !== cls.id) {
+                        // Class Changed -> Update
+                        const updatedStudent = { ...existingStudent, classroomId: cls.id };
+                        await apiUpdateStudent(updatedStudent);
+                        tempStudents[existingStudentIndex] = updatedStudent;
+                        updatedCount++;
+                    } else {
+                        // Same Class -> Skip
+                        skippedCount++;
+                    }
+                } else {
+                    // New Student -> Create
+                    const newStudent = {
+                        id: Date.now().toString() + Math.floor(Math.random() * 10000).toString(),
+                        name: s.name,
+                        surname: s.surname,
+                        classroomId: cls.id,
+                        targetCorrect: 6 // Explicit default value to avoid undefined error in Firebase
+                    };
+                    await apiAddStudent(newStudent);
+                    tempStudents.push(newStudent);
+                    addedCount++;
+                }
             }
         }
 
-        setStudents(prev => [...prev, ...addedStudents]);
+        setStudents(tempStudents);
         setIsBatchModalOpen(false);
-        alert(`İşlem Tamamlandı!\n\n${addedStudents.length} öğrenci eklendi.\n${createdClasses.length} yeni sınıf oluşturuldu.`);
+        alert(`İşlem Tamamlandı!\n\n${addedCount} yeni öğrenci eklendi.\n${updatedCount} öğrencinin sınıfı güncellendi.\n${skippedCount} kayıt zaten güncel.`);
     
     } catch (e) {
         console.error(e);
-        alert("Veriler kaydedilirken bir hata oluştu. Lütfen internet bağlantınızı kontrol edin.");
+        alert("Veriler kaydedilirken bir hata oluştu.");
     } finally {
         setIsLoading(false);
     }
   };
 
-  // --- RENDER HELPERS ---
-  const getClassName = (id: string) => classes.find(c => c.id === id)?.name || '-';
-  
-  const SortIcon = ({ active }: { active: boolean }) => (
-    <ArrowUpDown size={12} className={`ml-1 inline-block ${active ? 'text-indigo-400' : 'text-gray-600'}`} />
-  );
-  
-  const renderTrend = (current: number, previous: number | undefined) => {
-      const trend = getTrend(current, previous);
-      return <TrendIcon trend={trend} />;
-  }
+  // --- BATCH IMPORT HANDLER (RESULTS) ---
+  const handleBatchResultImport = async (text: string) => {
+    setIsLoading(true);
+    const lines = text.split('\n').filter(l => l.trim().length > 0);
+    const norm = (str: string) => str.trim().toLocaleLowerCase('tr');
 
-  // --- VIEWS ---
-  
-  const renderDashboard = () => {
-    const displayData = stats.examStats;
-    const xKey = 'formattedDate'; // Changed to Date
-    const yKey = 'avgNet';
+    let addedCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    let missingCount = 0;
 
-    // To allow scrolling max 5 visible:
-    const minWidthPerItem = 80;
-    const dynamicWidth = Math.max(displayData.length * minWidthPerItem, 300); // minimum container width
-
-    return (
-    <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
-      
-      <div className="flex justify-end">
-          <button 
-             onClick={() => setIsBatchModalOpen(true)}
-             className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm font-medium shadow-sm transition-colors border border-green-500"
-          >
-             <ClipboardList size={16} /> Hızlı Veri Girişi (Toplu)
-          </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-400 font-medium">Toplam Öğrenci</p>
-              <h3 className="text-2xl font-bold text-white mt-1">{stats.totalStudents}</h3>
-            </div>
-          </div>
-        </div>
-        <div className="bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-400 font-medium">Genel Net Ort.</p>
-              <h3 className="text-2xl font-bold text-white mt-1">{stats.globalAvgNet}</h3>
-            </div>
-          </div>
-        </div>
-        <div className="bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-400 font-medium">Deneme Sayısı</p>
-              <h3 className="text-2xl font-bold text-white mt-1">{stats.totalExams}</h3>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-700 relative">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-base font-bold text-gray-100">Deneme Bazlı Ortalama Analizi</h3>
-        </div>
+    try {
+        const tempExamDefs = [...examDefinitions];
+        const tempStudents = [...students];
+        const tempResults = [...exams];
         
-        <div style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
-            <div style={{ width: `${dynamicWidth}px`, height: 250 }}>
-            {displayData.length > 0 ? (
+        // Track which exams were processed and which students in those exams were processed
+        const processedExamStudentIds = new Map<string, Set<string>>(); // ExamID -> Set<StudentID>
+        const involvedClassIdsByExam = new Map<string, Set<string>>(); // ExamID -> Set<ClassID>
+
+        for (const line of lines) {
+            // Try explicit TAB split first (Best for Excel)
+            let parts = line.split('\t').map(p => p.trim()).filter(p => p !== "");
+            
+            // If no tabs found, try to split by spaces
+            if (parts.length < 3) {
+                 const spaceParts = line.trim().split(/\s+/);
+                 if (spaceParts.length >= 4) {
+                     // We have at least: W1 W2 ... Num Num
+                     const incStr = spaceParts.pop();
+                     const corrStr = spaceParts.pop();
+                     const rest = spaceParts.join(' ');
+                     parts = [rest, corrStr!, incStr!];
+                     // Note: parts[0] is "ExamName StudentName" mixed
+                 }
+            }
+
+            if (parts.length >= 3) {
+                const incorrectStr = parts.pop()!;
+                const correctStr = parts.pop()!;
+                // Now parts contains either [ExamName, StudentName] (if tabbed) OR [ExamName StudentName Mixed]
+                
+                const correct = parseInt(correctStr);
+                const incorrect = parseInt(incorrectStr);
+
+                if (isNaN(correct) || isNaN(incorrect) || (correct + incorrect > 10)) {
+                    skippedCount++;
+                    continue;
+                }
+                
+                let examNameStr = "";
+                let studentNameStr = "";
+
+                if (parts.length >= 2) {
+                    // Tab case: We have distinct columns
+                    studentNameStr = parts.pop()!;
+                    examNameStr = parts.join(' ');
+                } else {
+                    // Mixed case: "Exam Name Student Name"
+                    const mixedStr = parts[0];
+                    
+                    // STRATEGY: Find matching Exam Definition First (Longest Match)
+                    const sortedExams = tempExamDefs.sort((a,b) => b.name.length - a.name.length);
+                    const matchedExam = sortedExams.find(e => mixedStr.toLocaleLowerCase('tr').startsWith(e.name.toLocaleLowerCase('tr')));
+                    
+                    if (matchedExam) {
+                        examNameStr = matchedExam.name;
+                        studentNameStr = mixedStr.substring(examNameStr.length).trim();
+                    } else {
+                        // If Exam not found, try to match Student Name at the end (Risky but necessary fallback)
+                        // Try matching both "Name Surname" and "Surname Name"
+                        const matchedStudent = tempStudents.find(s => {
+                            const nameSurname = `${s.name} ${s.surname}`;
+                            const surnameName = `${s.surname} ${s.name}`;
+                            return mixedStr.toLocaleLowerCase('tr').endsWith(nameSurname.toLocaleLowerCase('tr')) || 
+                                   mixedStr.toLocaleLowerCase('tr').endsWith(surnameName.toLocaleLowerCase('tr'));
+                        });
+                        
+                        if (matchedStudent) {
+                            // Find which one matched to cut correctly
+                            const nameSurname = `${matchedStudent.name} ${matchedStudent.surname}`;
+                            const surnameName = `${matchedStudent.surname} ${matchedStudent.name}`;
+                            if (mixedStr.toLocaleLowerCase('tr').endsWith(nameSurname.toLocaleLowerCase('tr'))) {
+                                studentNameStr = nameSurname;
+                            } else {
+                                studentNameStr = surnameName;
+                            }
+                            examNameStr = mixedStr.substring(0, mixedStr.length - studentNameStr.length).trim();
+                        } else {
+                            // Can't identify
+                            skippedCount++;
+                            continue;
+                        }
+                    }
+                }
+
+                // 1. RESOLVE EXAM
+                let examDef = tempExamDefs.find(e => norm(e.name) === norm(examNameStr));
+                if (!examDef) {
+                    // Create new Exam Def if we identified a name
+                    if (examNameStr.length > 0) {
+                        const newDef = { id: Date.now() + Math.random().toString(), name: examNameStr, date: new Date().toISOString().split('T')[0] };
+                        await apiAddExamDefinition(newDef);
+                        tempExamDefs.push(newDef);
+                        examDef = newDef;
+                    } else {
+                        skippedCount++;
+                        continue;
+                    }
+                }
+
+                // 2. RESOLVE STUDENT
+                // Find student by name (Global search) - Handle Name Surname OR Surname Name
+                const student = tempStudents.find(s => 
+                    norm(`${s.name} ${s.surname}`) === norm(studentNameStr) || 
+                    norm(`${s.surname} ${s.name}`) === norm(studentNameStr)
+                );
+                
+                if (!student) {
+                    // Cannot create student because we don't know the class
+                    console.warn(`Öğrenci bulunamadı: ${studentNameStr}`);
+                    skippedCount++;
+                    continue;
+                }
+
+                // Track participation
+                if (!processedExamStudentIds.has(examDef.id)) {
+                    processedExamStudentIds.set(examDef.id, new Set());
+                    involvedClassIdsByExam.set(examDef.id, new Set());
+                }
+                processedExamStudentIds.get(examDef.id)!.add(student.id);
+                involvedClassIdsByExam.get(examDef.id)!.add(student.classroomId);
+
+                // 3. CREATE/UPDATE RESULT
+                const empty = 10 - (correct + incorrect);
+                const net = parseFloat((correct - (incorrect * 0.33)).toFixed(2));
+                
+                const existingResult = tempResults.find(r => r.studentId === student.id && r.examId === examDef!.id);
+                 
+                const resultData = {
+                    studentId: student.id,
+                    examId: examDef!.id,
+                    examName: examDef!.name,
+                    date: examDef!.date,
+                    correct,
+                    incorrect,
+                    empty,
+                    net,
+                    status: 'ATTENDED' as const
+                };
+
+                if (existingResult) {
+                    const updated = { ...resultData, id: existingResult.id };
+                    await apiUpdateExamResult(updated);
+                    const idx = tempResults.findIndex(r => r.id === existingResult.id);
+                    tempResults[idx] = updated;
+                    updatedCount++;
+                } else {
+                    const newResult = { ...resultData, id: Date.now() + Math.random().toString() };
+                    await apiAddExamResult(newResult);
+                    tempResults.push(newResult);
+                    addedCount++;
+                }
+            } else {
+                skippedCount++;
+            }
+        }
+
+        // 4. AUTO-FILL "MISSING" (GİRMEDİ) STATUS
+        // For each exam processed, find students in the "involved classes" who were NOT in the input list
+        for (const [examId, classIds] of involvedClassIdsByExam.entries()) {
+             const processedStudentIds = processedExamStudentIds.get(examId)!;
+             const examDef = tempExamDefs.find(e => e.id === examId);
+             
+             if (!examDef) continue;
+
+             const studentsInvolved = tempStudents.filter(s => classIds.has(s.classroomId));
+
+             for (const student of studentsInvolved) {
+                 // If student was NOT processed in this batch import
+                 if (!processedStudentIds.has(student.id)) {
+                     // Check if they already have a result for this exam (maybe entered manually before)
+                     const existingResult = tempResults.find(r => r.studentId === student.id && r.examId === examId);
+                     
+                     if (!existingResult) {
+                         // No result exists, create MISSING result
+                         const missingResult = {
+                            id: Date.now() + Math.random().toString(),
+                            studentId: student.id,
+                            examId: examDef.id,
+                            examName: examDef.name,
+                            date: examDef.date,
+                            correct: 0,
+                            incorrect: 0,
+                            empty: 0,
+                            net: 0,
+                            status: 'MISSING' as const
+                         };
+                         await apiAddExamResult(missingResult);
+                         tempResults.push(missingResult);
+                         missingCount++;
+                     }
+                 }
+             }
+        }
+
+        setExamDefinitions(tempExamDefs);
+        setExams(tempResults);
+        
+        setIsBatchModalOpen(false);
+        alert(`İşlem Tamamlandı!\n\n${addedCount} yeni sonuç eklendi.\n${updatedCount} sonuç güncellendi.\n${missingCount} öğrenci otomatik 'GİRMEDİ' işaretlendi.\n${skippedCount} satır okunamadı/atlandı.`);
+    
+    } catch (e) {
+        console.error(e);
+        alert("Veriler kaydedilirken bir hata oluştu.");
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  // --- RENDER VIEWS ---
+
+  const renderDashboard = () => (
+    <div className="space-y-4">
+      {/* HEADER STATS */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
+          <p className="text-gray-400 text-xs">Öğrenci</p>
+          <p className="text-2xl font-bold text-white">{stats.totalStudents}</p>
+        </div>
+        <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
+          <p className="text-gray-400 text-xs">Sınav</p>
+          <p className="text-2xl font-bold text-white">{stats.totalExamDefinitions}</p>
+        </div>
+        <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
+          <p className="text-gray-400 text-xs">Ort. Net</p>
+          <p className="text-2xl font-bold text-indigo-400">{stats.globalAvgNet}</p>
+        </div>
+      </div>
+
+      {/* CHART */}
+      <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
+        <h3 className="text-gray-200 font-semibold mb-3 text-sm flex justify-between items-center">
+             Deneme Ortalamaları
+        </h3>
+        <div className="overflow-x-auto">
+            <div style={{ minWidth: Math.max(stats.examStats.length * 50, 300), height: 250 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={displayData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
+                <LineChart data={stats.examStats} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis 
-                        dataKey={xKey} 
+                        dataKey="formattedDate" 
                         stroke="#9CA3AF" 
-                        tick={{fontSize: 10}} 
-                        interval={0} 
-                        angle={-45}
-                        textAnchor="end"
-                        height={60}
+                        tick={{fill: '#9CA3AF', fontSize: 10}}
+                        interval={0}
                     />
-                    <YAxis domain={[0, 10]} stroke="#9CA3AF" tick={{fontSize: 10}} />
+                    <YAxis 
+                        stroke="#9CA3AF" 
+                        domain={[0, 10]} 
+                        tick={{fill: '#9CA3AF', fontSize: 10}} 
+                    />
                     <Tooltip 
-                        cursor={{fill: '#374151', opacity: 0.4}} 
-                        contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', color: '#F3F4F6', fontSize: '12px' }}
-                        labelFormatter={(label, payload) => {
-                             if(payload && payload.length > 0) {
-                                 const item = payload[0].payload;
-                                 return `${item.name} (${item.formattedDate})`;
-                             }
-                             return label;
-                        }}
+                    contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#F3F4F6' }}
+                    itemStyle={{ color: '#818CF8' }}
+                    labelFormatter={(label, payload) => {
+                        if (payload && payload.length > 0) {
+                            return `${payload[0].payload.name} (${label})`;
+                        }
+                        return label;
+                    }}
                     />
-                    <Bar 
-                        dataKey={yKey} 
-                        fill="#6366f1" 
-                        radius={[4, 4, 0, 0]} 
-                        name="Ortalama Net" 
-                    />
-                </BarChart>
+                    <Line type="monotone" dataKey="avgNet" stroke="#818CF8" strokeWidth={3} dot={{r: 4, fill: '#818CF8'}} activeDot={{ r: 6 }} name="Ortalama Net" />
+                </LineChart>
                 </ResponsiveContainer>
-            ) : (
-                <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-                Veri yok.
-                </div>
-            )}
             </div>
         </div>
       </div>
-    </div>
-  )};
 
-  const renderStudents = () => (
-    <div className="space-y-4 pb-20 md:pb-0">
-      <div className="flex flex-col gap-3 bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-700">
-        <div className="flex gap-2">
-           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={16} />
-            <input
-              type="text"
-              placeholder="Öğrenci ara..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-3 py-2 w-full bg-gray-700 border border-gray-600 rounded-md text-sm outline-none text-white placeholder-gray-400"
-            />
-          </div>
-          <select
-            value={filterClassId}
-            onChange={(e) => setFilterClassId(e.target.value)}
-            className="bg-gray-700 border border-gray-600 text-white rounded-md py-2 px-2 text-sm outline-none w-28"
+      {/* RECENT STUDENTS TABLE */}
+      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <div className="p-3 border-b border-gray-700 flex justify-between items-center">
+          <h3 className="text-gray-200 font-semibold text-sm">Son Durum (Tümü)</h3>
+          <button 
+             onClick={() => { setIsBatchModalOpen(true); setBatchModalMode('student'); }} 
+             className="text-xs bg-indigo-900/50 text-indigo-300 px-2 py-1 rounded border border-indigo-900 hover:bg-indigo-900 hover:text-white transition-colors flex items-center gap-1"
           >
-            <option value="all">Sınıf: Tümü</option>
-            {classes.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex gap-2">
-          <select
-            value={filterExamId}
-            onChange={(e) => setFilterExamId(e.target.value)}
-            className="flex-1 bg-gray-700 border border-gray-600 text-white rounded-md py-2 px-2 text-sm outline-none"
-          >
-            <option value="all">Deneme: Tümü (Ortalama)</option>
-            {examDefinitions.map(ed => (
-              <option key={ed.id} value={ed.id}>{ed.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => { setEditingStudent(null); setIsStudentModalOpen(true); }}
-            className="flex items-center gap-1 bg-indigo-600 text-white px-3 py-2 rounded-md hover:bg-indigo-700 transition flex-1 justify-center text-sm"
-          >
-            <Plus size={16} /> Yeni Öğrenci
+             <ClipboardList size={14} /> Hızlı Veri
           </button>
         </div>
-      </div>
-
-      <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-900 border-b border-gray-700">
+          <table className="w-full text-left text-gray-300">
+            <thead className="text-xs uppercase bg-gray-900 text-gray-400">
               <tr>
-                <th onClick={() => handleSort(sortStudents, setSortStudents, 'name')} className="px-3 py-3 text-xs font-semibold text-gray-400 uppercase cursor-pointer whitespace-nowrap">Ad Soyad <SortIcon active={sortStudents.key === 'name'} /></th>
-                <th onClick={() => handleSort(sortStudents, setSortStudents, 'classroomId')} className="px-2 py-3 text-xs font-semibold text-gray-400 uppercase cursor-pointer text-center">Sınıf <SortIcon active={sortStudents.key === 'classroomId'} /></th>
-                
-                <th onClick={() => handleSort(sortStudents, setSortStudents, 'targetCorrect')} className="px-2 py-3 text-xs font-semibold text-yellow-500 uppercase cursor-pointer text-center" title="Hedef">Hedef <SortIcon active={sortStudents.key === 'targetCorrect'} /></th>
-                <th onClick={() => handleSort(sortStudents, setSortStudents, 'averageCorrect')} className="px-2 py-3 text-xs font-semibold text-green-400 uppercase cursor-pointer text-center w-8" title="Doğru">D <SortIcon active={sortStudents.key === 'averageCorrect'} /></th>
-                <th onClick={() => handleSort(sortStudents, setSortStudents, 'averageIncorrect')} className="px-2 py-3 text-xs font-semibold text-red-400 uppercase cursor-pointer text-center w-8" title="Yanlış">Y <SortIcon active={sortStudents.key === 'averageIncorrect'} /></th>
-                <th onClick={() => handleSort(sortStudents, setSortStudents, 'averageNet')} className="px-2 py-3 text-xs font-semibold text-indigo-400 uppercase cursor-pointer text-center w-12" title="Net">N <SortIcon active={sortStudents.key === 'averageNet'} /></th>
+                <th className="px-2 py-2 cursor-pointer hover:text-white" onClick={() => handleSort(sortStudents, setSortStudents, 'name')}>Öğrenci <ArrowUpDown size={10} className="inline ml-1"/></th>
+                <th className="px-2 py-2 cursor-pointer hover:text-white" onClick={() => handleSort(sortStudents, setSortStudents, 'classroomId')}>Sınıf <ArrowUpDown size={10} className="inline ml-1"/></th>
+                <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortStudents, setSortStudents, 'targetCorrect')}>Hedef <ArrowUpDown size={10} className="inline ml-1"/></th>
+                <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortStudents, setSortStudents, 'lastResult.correct')}>D <ArrowUpDown size={10} className="inline ml-1"/></th>
+                <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortStudents, setSortStudents, 'lastResult.incorrect')}>Y <ArrowUpDown size={10} className="inline ml-1"/></th>
+                <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortStudents, setSortStudents, 'lastNet')}>Net <ArrowUpDown size={10} className="inline ml-1"/></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-700 text-gray-300">
-              {filteredStudents.map(student => {
-                 const lastRes = student.lastResult;
-                 const prevRes = student.previousResult;
-                 const showTrends = filterExamId === 'all'; 
-
-                 const d = student.averageCorrect;
-                 const y = student.averageIncorrect;
-
+            <tbody className="divide-y divide-gray-700 text-sm">
+              {filteredStudents.slice(0, 10).map((student) => {
+                 const cls = classes.find(c => c.id === student.classroomId);
                  return (
-                <tr key={student.id} className="hover:bg-gray-700/50 transition cursor-pointer" onClick={() => navigateToStudent(student.id)}>
-                  <td className="px-3 py-3 text-sm text-indigo-300 font-medium">
-                      {student.name} {student.surname}
-                  </td>
-                  <td className="px-2 py-3 text-center">
-                    <span className="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded text-xs">
-                      {getClassName(student.classroomId)}
-                    </span>
-                  </td>
-                  <td className="px-2 py-3 text-center text-sm font-medium text-yellow-500">
-                    {student.targetCorrect}
-                  </td>
-                  <td className="px-2 py-3 text-center text-sm font-medium text-green-400">
-                     {d} {showTrends && lastRes && renderTrend(lastRes.correct, prevRes?.correct)}
-                  </td>
-                  <td className="px-2 py-3 text-center text-sm font-medium text-red-400">
-                     {y} {showTrends && lastRes && renderTrend(lastRes.incorrect, prevRes?.incorrect)}
-                  </td>
-                  <td className="px-2 py-3 text-center text-sm font-bold text-indigo-300">
-                      {student.averageNet} {showTrends && lastRes && renderTrend(lastRes.net, prevRes?.net)}
-                  </td>
-                </tr>
-              )})}
-              {filteredStudents.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
-                    Kayıt yok.
-                  </td>
-                </tr>
-              )}
+                  <tr key={student.id} onClick={() => handleNavigation('STUDENT_DETAIL', { studentId: student.id })} className="hover:bg-gray-700/50 cursor-pointer transition-colors">
+                    <td className="px-2 py-2 font-medium text-white">{student.name} {student.surname}</td>
+                    <td className="px-2 py-2 text-xs">{cls?.name || '-'}</td>
+                    <td className="px-2 py-2 text-center text-gray-400">{student.targetCorrect ?? '-'}</td>
+                    <td className="px-2 py-2 text-center text-green-400 font-medium">
+                        {student.lastResult ? (student.lastResult.status === 'MISSING' ? '-' : student.lastResult.correct) : '-'}
+                        {student.lastResult && student.previousResult && <span className="ml-1"><TrendIcon trend={getTrend(student.lastResult.correct, student.previousResult?.correct)} /></span>}
+                    </td>
+                    <td className="px-2 py-2 text-center text-red-400">
+                        {student.lastResult ? (student.lastResult.status === 'MISSING' ? '-' : student.lastResult.incorrect) : '-'}
+                    </td>
+                    <td className="px-2 py-2 text-center font-bold text-indigo-400">
+                        {student.lastResult ? (student.lastResult.status === 'MISSING' ? 'G' : student.lastResult.net) : '-'}
+                        {student.lastResult && student.previousResult && <span className="ml-1"><TrendIcon trend={getTrend(student.lastResult.net, student.previousResult?.net)} /></span>}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+          {filteredStudents.length === 0 && (
+            <div className="p-4 text-center text-gray-500 text-sm">Öğrenci bulunamadı.</div>
+          )}
         </div>
       </div>
+
+       <div className="flex justify-end gap-2 pb-safe">
+            <button 
+                onClick={() => { setIsBatchModalOpen(true); setBatchModalMode('result'); }}
+                className="bg-green-700 hover:bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 shadow-lg shadow-green-900/20"
+            >
+                <FileSpreadsheet size={16} /> Hızlı Sonuç Girişi
+            </button>
+            <button 
+                onClick={() => { setIsBatchModalOpen(true); setBatchModalMode('student'); }}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 shadow-lg shadow-indigo-900/20"
+            >
+                <Plus size={16} /> Yeni Öğrenci Ekle
+            </button>
+       </div>
+
     </div>
   );
 
-  const renderStudentDetail = () => {
-    const student = studentsWithStats.find(s => s.id === selectedStudentId); 
-    if (!student || !selectedStudentId) return null;
-
-    const studentExams = exams.filter(e => e.studentId === student.id && e.status !== 'MISSING')
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const renderClassDetail = () => {
+    const cls = classes.find(c => c.id === selectedClassId);
+    if (!cls) return <div>Sınıf bulunamadı</div>;
     
-    // Sort ascending for chart (Oldest to Newest)
-    const chartData = [...studentExams].reverse().map(e => ({
-      name: e.examName,
-      net: e.net,
-      correct: e.correct,
-      date: formatDate(e.date)
-    }));
+    // Determine which exam stats to show
+    const baseStudents = studentsWithStats.filter(s => s.classroomId === selectedClassId);
+    
+    // RE-CALCULATE stats for this specific view based on classDetailExamFilter
+    const displayStudents = baseStudents.map(s => {
+        let relevantExam: ExamResult | undefined;
+        let displayNet = 0;
+        let displayCorrect = 0;
+        let displayIncorrect = 0;
+        let status = 'ATTENDED';
 
-    // Dynamic width for student chart (same logic: 60px per item min)
-    const minWidthPerItem = 60;
-    const dynamicChartWidth = Math.max(chartData.length * minWidthPerItem, 300);
+        if (classDetailExamFilter === 'last') {
+            // Already computed in studentsWithStats.lastResult
+            relevantExam = s.lastResult || undefined;
+            displayNet = s.lastNet;
+            displayCorrect = relevantExam?.correct || 0;
+            displayIncorrect = relevantExam?.incorrect || 0;
+            status = relevantExam?.status || 'ATTENDED';
+        } else if (classDetailExamFilter === 'all') {
+             displayNet = s.averageNet;
+             displayCorrect = s.averageCorrect;
+             displayIncorrect = s.averageIncorrect;
+             status = 'ATTENDED'; // Average is always attended conceptually
+        } else {
+            // Find specific exam result
+            relevantExam = exams.find(e => e.studentId === s.id && e.examId === classDetailExamFilter);
+            displayNet = relevantExam ? relevantExam.net : 0;
+            displayCorrect = relevantExam ? relevantExam.correct : 0;
+            displayIncorrect = relevantExam ? relevantExam.incorrect : 0;
+            status = relevantExam?.status || (relevantExam ? 'ATTENDED' : 'MISSING');
+        }
 
-    const averageCorrect = student.averageCorrect;
-    const targetCorrect = student.targetCorrect || 6;
-    const progress = Math.min((averageCorrect / targetCorrect) * 100, 100);
-
-    const rawExamHistory = examDefinitions.map(def => {
-            const result = exams.find(e => e.studentId === student.id && (e.examId === def.id || e.examName === def.name));
-            return { def, result };
+        return {
+            ...s,
+            displayNet,
+            displayCorrect,
+            displayIncorrect,
+            displayStatus: status,
+            // For sorting reuse
+            lastNet: displayNet, 
+            lastResult: relevantExam 
+                ? { ...relevantExam, correct: displayCorrect, incorrect: displayIncorrect, net: displayNet } 
+                : (classDetailExamFilter === 'all' ? { correct: displayCorrect, incorrect: displayIncorrect, net: displayNet } as any : null)
+        };
     });
-    
-    const examHistory = sortData<any>(rawExamHistory, sortExamHistory);
-    const existingExamIds = exams.filter(e => e.studentId === student.id).map(e => e.examId || '');
+
+    const sortedClassStudents = sortData(displayStudents, sortClassStudents);
+
+    // Calculate Class Averages for the selected view
+    const validStudents = sortedClassStudents.filter(s => s.displayStatus !== 'MISSING' && (classDetailExamFilter !== 'all' ? s.lastResult : true));
+    const avgNet = validStudents.length > 0 
+        ? (validStudents.reduce((sum, s) => sum + s.displayNet, 0) / validStudents.length).toFixed(2)
+        : '0.00';
 
     return (
-      <div className="space-y-4 pb-20 md:pb-0">
-        <div className="flex justify-between items-center">
-             <button 
-              onClick={() => setView('STUDENTS')}
-              className="flex items-center text-gray-400 hover:text-indigo-400 transition text-sm"
-            >
-              <ArrowLeft size={16} className="mr-1" /> Listeye Dön
+      <div className="space-y-4 pb-safe">
+        <div className="flex items-center justify-between mb-2">
+            <button onClick={handleBack} className="text-gray-400 hover:text-white flex items-center gap-1 text-sm">
+                <ArrowLeft size={16} /> Geri
             </button>
-            <div className="flex gap-2">
-                 <button 
-                    onClick={() => { setEditingStudent(student); setIsStudentModalOpen(true); }}
-                    className="p-1.5 bg-gray-700 text-blue-400 rounded hover:bg-gray-600"
-                    title="Düzenle"
-                 >
-                    <Edit size={16} />
-                 </button>
-                 <button 
-                    onClick={() => handleDeleteStudent(student.id)}
-                    className="p-1.5 bg-gray-700 text-red-400 rounded hover:bg-gray-600"
-                    title="Sil"
-                 >
-                    <Trash2 size={16} />
-                 </button>
-            </div>
+            <h2 className="text-lg font-bold text-white">{cls.name}</h2>
+            <div className="w-16"></div> 
         </div>
 
-        {/* Profile Header */}
-        <div className="bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-700 flex flex-col gap-4">
-            <div className="flex justify-between items-start">
-                <div>
-                     <h2 className="text-xl font-bold text-gray-100">{student.name} {student.surname}</h2>
-                     <p className="text-sm text-gray-400">{getClassName(student.classroomId)}</p>
-                </div>
-                <div className="text-right">
-                     <div className="text-xs text-gray-400">Ort. Net</div>
-                     <div className="text-2xl font-bold text-indigo-400">{student.averageNet}</div>
-                </div>
-            </div>
-            
-            <div className="w-full">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-400">Hedef: {targetCorrect} Doğru</span>
-                    <span className="font-medium text-gray-300">{averageCorrect} / {targetCorrect} Doğru</span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div className="bg-green-500 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
-                  </div>
-            </div>
-
-            <button
-                onClick={() => handleOpenExamModal()}
-                className="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition flex items-center justify-center gap-2 text-sm"
-            >
-                <Plus size={16} /> Deneme Ekle
-            </button>
+        {/* STATS CARDS */}
+        <div className="grid grid-cols-2 gap-3">
+             <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
+                <p className="text-gray-400 text-xs">Öğrenci</p>
+                <p className="text-xl font-bold text-white">{displayStudents.length}</p>
+             </div>
+             <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
+                <p className="text-gray-400 text-xs">Ort. Net ({classDetailExamFilter === 'last' ? 'Son' : (classDetailExamFilter === 'all' ? 'Genel' : 'Seçili')})</p>
+                <p className="text-xl font-bold text-indigo-400">{avgNet}</p>
+             </div>
         </div>
 
-        {/* Chart */}
-        <div className="bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-700 relative">
-            <div className="flex justify-between items-center mb-2">
-                <h3 className="text-sm font-bold text-gray-100">Gelişim</h3>
-                <div className="flex gap-2 items-center">
-                    <div className="flex bg-gray-700 rounded-lg p-0.5">
-                    <button 
-                        onClick={() => setStudentChartMetric('net')}
-                        className={`px-2 py-0.5 text-xs rounded transition ${studentChartMetric === 'net' ? 'bg-gray-600 text-indigo-400' : 'text-gray-400'}`}
-                    >Net</button>
-                    <button 
-                        onClick={() => setStudentChartMetric('correct')}
-                        className={`px-2 py-0.5 text-xs rounded transition ${studentChartMetric === 'correct' ? 'bg-gray-600 text-green-400' : 'text-gray-400'}`}
-                    >Doğru</button>
+        {/* STUDENT LIST */}
+        <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            <div className="p-3 border-b border-gray-700 flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                    <h3 className="text-gray-200 font-semibold text-sm">Öğrenciler</h3>
+                    <div className="flex items-center gap-2">
+                         <span className="text-xs text-gray-400">Görüntülenen:</span>
+                         <select 
+                            className="bg-gray-900 text-white text-xs p-1 rounded border border-gray-600 outline-none"
+                            value={classDetailExamFilter}
+                            onChange={(e) => setClassDetailExamFilter(e.target.value)}
+                         >
+                            <option value="last">Son Deneme</option>
+                            <option value="all">Tüm Sınavlar (Ortalama)</option>
+                            {examDefinitions.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(def => (
+                                <option key={def.id} value={def.id}>{def.name}</option>
+                            ))}
+                         </select>
                     </div>
                 </div>
             </div>
-              
-            <div style={{ width: '100%', overflowX: 'auto' }}>
-                <div style={{ width: `${dynamicChartWidth}px`, height: 200 }}>
-                    {chartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
-                        <XAxis 
-                            dataKey="date" 
-                            stroke="#9CA3AF" 
-                            tick={{fontSize: 10}} 
-                            interval={0} 
-                            angle={-45}
-                            textAnchor="end"
-                            height={40}
-                        />
-                        <YAxis domain={[0, 10]} stroke="#9CA3AF" tick={{fontSize: 10}} />
-                        <Tooltip 
-                            contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', color: '#F3F4F6', fontSize: '12px' }} 
-                            labelFormatter={(label, payload) => {
-                                if(payload && payload.length > 0) {
-                                    const item = payload[0].payload;
-                                    return `${item.name} (${item.date})`;
-                                }
-                                return label;
-                           }}
-                        />
-                        <Line 
-                            type="monotone" 
-                            dataKey={studentChartMetric} 
-                            stroke={studentChartMetric === 'net' ? "#6366f1" : "#22c55e"} 
-                            strokeWidth={2} 
-                            dot={{ r: 3 }} 
-                        />
-                        </LineChart>
-                    </ResponsiveContainer>
-                    ) : (
-                    <div className="h-full flex items-center justify-center text-gray-500 text-xs">Veri yok.</div>
-                    )}
-                </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-gray-300">
+                    <thead className="text-xs uppercase bg-gray-900 text-gray-400">
+                        <tr>
+                            <th className="px-2 py-2 cursor-pointer hover:text-white" onClick={() => handleSort(sortClassStudents, setSortClassStudents, 'name')}>Ad Soyad <ArrowUpDown size={10} className="inline"/></th>
+                            <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortClassStudents, setSortClassStudents, 'targetCorrect')}>Hdf <ArrowUpDown size={10} className="inline"/></th>
+                            <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortClassStudents, setSortClassStudents, 'displayCorrect')}>D <ArrowUpDown size={10} className="inline"/></th>
+                            <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortClassStudents, setSortClassStudents, 'displayIncorrect')}>Y <ArrowUpDown size={10} className="inline"/></th>
+                            <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortClassStudents, setSortClassStudents, 'displayNet')}>Net <ArrowUpDown size={10} className="inline"/></th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700 text-sm">
+                        {sortedClassStudents.map(student => (
+                            <tr key={student.id} onClick={() => handleNavigation('STUDENT_DETAIL', { studentId: student.id })} className="hover:bg-gray-700/50 cursor-pointer transition-colors">
+                                <td className="px-2 py-2 font-medium text-white">{student.name} {student.surname}</td>
+                                <td className="px-2 py-2 text-center text-gray-400">{student.targetCorrect ?? '-'}</td>
+                                <td className="px-2 py-2 text-center text-green-400">
+                                    {student.displayStatus === 'MISSING' && classDetailExamFilter !== 'all' ? '-' : student.displayCorrect}
+                                </td>
+                                <td className="px-2 py-2 text-center text-red-400">
+                                    {student.displayStatus === 'MISSING' && classDetailExamFilter !== 'all' ? '-' : student.displayIncorrect}
+                                </td>
+                                <td className="px-2 py-2 text-center font-bold text-indigo-400">
+                                    {student.displayStatus === 'MISSING' && classDetailExamFilter !== 'all' ? <span className="text-gray-500 text-xs">G</span> : student.displayNet}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
 
-        {/* History Table */}
-        <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-700">
-               <h3 className="text-sm font-bold text-gray-100">Geçmiş</h3>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-900">
-                    <tr>
-                      <th onClick={() => handleSort(sortExamHistory, setSortExamHistory, 'def.date')} className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase whitespace-nowrap cursor-pointer">Tarih <SortIcon active={sortExamHistory.key === 'def.date'} /></th>
-                      <th onClick={() => handleSort(sortExamHistory, setSortExamHistory, 'def.name')} className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase whitespace-nowrap cursor-pointer">Sınav <SortIcon active={sortExamHistory.key === 'def.name'} /></th>
-                      <th onClick={() => handleSort(sortExamHistory, setSortExamHistory, 'result.correct')} className="px-2 py-2 text-xs font-semibold text-green-400 uppercase text-center cursor-pointer">D <SortIcon active={sortExamHistory.key === 'result.correct'} /></th>
-                      <th onClick={() => handleSort(sortExamHistory, setSortExamHistory, 'result.incorrect')} className="px-2 py-2 text-xs font-semibold text-red-400 uppercase text-center cursor-pointer">Y <SortIcon active={sortExamHistory.key === 'result.incorrect'} /></th>
-                      <th onClick={() => handleSort(sortExamHistory, setSortExamHistory, 'result.net')} className="px-2 py-2 text-xs font-semibold text-indigo-400 uppercase text-center cursor-pointer">Net <SortIcon active={sortExamHistory.key === 'result.net'} /></th>
-                      <th className="px-2 py-2 text-xs font-semibold text-gray-400 uppercase text-right">İşlem</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700 text-gray-300">
-                    {examHistory.map(({ def, result }: any, idx: number) => {
-                        const isMissing = result?.status === 'MISSING';
-                        const prevResult = examHistory[idx + 1]?.result;
-                        const showTrend = result && prevResult && !isMissing && prevResult.status !== 'MISSING';
+        {/* EXAM PERFORMANCE TABLE */}
+        <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+             <div className="p-3 border-b border-gray-700 bg-gray-900">
+                <h3 className="text-gray-200 font-semibold text-sm">Sınıf Deneme Karnesi</h3>
+             </div>
+             <div className="max-h-48 overflow-y-auto">
+                <table className="w-full text-left text-gray-300">
+                    <thead className="text-xs uppercase bg-gray-900 text-gray-400 sticky top-0">
+                        <tr>
+                            <th className="px-3 py-2">Deneme</th>
+                            <th className="px-3 py-2 text-center">Ort. Net</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700 text-sm">
+                        {examDefinitions.slice().reverse().map(def => {
+                             const classResults = exams.filter(e => e.examId === def.id && students.some(s => s.id === e.studentId && s.classroomId === cls.id) && e.status !== 'MISSING');
+                             if (classResults.length === 0) return null;
+                             const examAvg = (classResults.reduce((sum, e) => sum + e.net, 0) / classResults.length).toFixed(2);
+                             return (
+                                 <tr key={def.id}>
+                                     <td className="px-3 py-2 text-xs">{def.name}</td>
+                                     <td className="px-3 py-2 text-center font-bold text-indigo-400">{examAvg}</td>
+                                 </tr>
+                             )
+                        })}
+                    </tbody>
+                </table>
+             </div>
+        </div>
+      </div>
+    );
+  };
 
-                        return (
-                            <tr key={def.id} className="hover:bg-gray-700/50">
-                                <td className="px-3 py-2 text-xs text-gray-400">{formatDate(def.date)}</td>
-                                <td className="px-3 py-2 text-xs font-medium text-gray-200">{def.name}</td>
-                                {result ? (
-                                    isMissing ? (
-                                        <td colSpan={3} className="px-2 py-2 text-xs text-center font-bold text-red-400">GİRMEDİ</td>
-                                    ) : (
-                                        <>
-                                        <td className="px-2 py-2 text-sm text-center font-medium text-green-400">
-                                            {result.correct} {showTrend && renderTrend(result.correct, prevResult?.correct)}
-                                        </td>
-                                        <td className="px-2 py-2 text-sm text-center font-medium text-red-400">
-                                            {result.incorrect} {showTrend && renderTrend(result.incorrect, prevResult?.incorrect)}
-                                        </td>
-                                        <td className="px-2 py-2 text-sm text-center font-bold text-indigo-400">
-                                            {result.net} {showTrend && renderTrend(result.net, prevResult?.net)}
-                                        </td>
-                                        </>
-                                    )
-                                ) : (
-                                    <td colSpan={3} className="px-2 py-2 text-xs text-center text-gray-500 italic">-</td>
-                                )}
-                                
-                                <td className="px-2 py-2 text-right">
-                                    <div className="flex justify-end gap-2">
-                                        {result ? (
-                                            <>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleOpenExamModal(result, undefined); }}
-                                                    className="p-1 text-blue-400 hover:bg-blue-900/50 rounded pointer-events-auto"
-                                                >
-                                                    <Edit size={14} />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleDeleteExamResult(result.id); }}
-                                                    className="p-1 text-red-400 hover:bg-red-900/50 rounded pointer-events-auto"
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </>
+  const renderStudentDetail = () => {
+    const student = studentsWithStats.find(s => s.id === selectedStudentId);
+    if (!student) return <div>Öğrenci bulunamadı</div>;
+    const cls = classes.find(c => c.id === student.classroomId);
+
+    // Chart Data
+    const studentResults = exams
+        .filter(e => e.studentId === student.id && e.status !== 'MISSING')
+        .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .map(e => ({
+            name: e.examName,
+            net: e.net,
+            correct: e.correct,
+            date: formatDate(e.date)
+        }));
+
+    // Exam History Table
+    const history = exams
+        .filter(e => e.studentId === student.id)
+        .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    // Merge with definitions to show missing exams
+    const fullHistory = examDefinitions.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(def => {
+        const result = history.find(h => h.examId === def.id);
+        return {
+            def,
+            result
+        };
+    });
+
+    const sortedFullHistory = sortData(fullHistory, sortExamHistory);
+
+    return (
+      <div className="space-y-4 pb-safe">
+        {/* HEADER */}
+        <div className="flex items-center justify-between">
+            <button onClick={handleBack} className="text-gray-400 hover:text-white flex items-center gap-1 text-sm">
+                <ArrowLeft size={16} /> Geri
+            </button>
+            <div className="flex gap-2">
+                <button onClick={() => { setEditingStudent(student); setIsStudentModalOpen(true); }} className="p-2 bg-gray-800 hover:bg-gray-700 text-indigo-400 rounded-lg border border-gray-700">
+                    <Edit size={16} />
+                </button>
+                <button onClick={() => handleDeleteStudent(student.id)} className="p-2 bg-gray-800 hover:bg-red-900/50 text-red-400 rounded-lg border border-gray-700">
+                    <Trash2 size={16} />
+                </button>
+            </div>
+        </div>
+
+        {/* PROFILE CARD */}
+        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 flex justify-between items-start">
+             <div>
+                <h2 className="text-xl font-bold text-white mb-1">{student.name} {student.surname}</h2>
+                <div className="text-sm text-gray-400 mb-3">{cls?.name || 'Sınıfsız'}</div>
+                
+                <div className="flex items-center gap-4 text-sm">
+                    <div>
+                        <span className="text-gray-500 block text-xs">Ort. Net</span>
+                        <span className="font-bold text-indigo-400 text-lg">{student.averageNet}</span>
+                    </div>
+                    <div>
+                         <span className="text-gray-500 block text-xs">Son Deneme</span>
+                         <span className="font-bold text-white">
+                            {student.lastResult ? (student.lastResult.status === 'MISSING' ? 'GİRMEDİ' : `${student.lastResult.correct} D / ${student.lastResult.incorrect} Y`) : '-'}
+                         </span>
+                    </div>
+                </div>
+             </div>
+             <div className="text-right">
+                 <div className="text-xs text-gray-400 mb-1">Hedef: <span className="text-white font-bold">{student.targetCorrect || 6} Doğru</span></div>
+                 {student.lastResult && student.lastResult.status !== 'MISSING' && (
+                     <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div 
+                            className={`h-full ${student.lastResult.correct >= (student.targetCorrect || 6) ? 'bg-green-500' : 'bg-yellow-500'}`} 
+                            style={{ width: `${Math.min((student.lastResult.correct / (student.targetCorrect || 6)) * 100, 100)}%` }}
+                        ></div>
+                     </div>
+                 )}
+                 {student.lastResult && student.lastResult.status !== 'MISSING' && (
+                    <div className="text-xs mt-1 text-gray-500">
+                        {student.lastResult.correct} / {student.targetCorrect || 6} Doğru
+                    </div>
+                 )}
+             </div>
+        </div>
+
+        {/* CHART */}
+        {studentResults.length > 0 && (
+            <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
+                <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-gray-200 font-semibold text-sm">Gelişim Grafiği</h3>
+                    <div className="flex bg-gray-900 rounded p-0.5">
+                        <button 
+                            onClick={() => setStudentChartMetric('net')}
+                            className={`text-xs px-2 py-1 rounded ${studentChartMetric === 'net' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            Net
+                        </button>
+                        <button 
+                            onClick={() => setStudentChartMetric('correct')}
+                            className={`text-xs px-2 py-1 rounded ${studentChartMetric === 'correct' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            Doğru
+                        </button>
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <div style={{ minWidth: Math.max(studentResults.length * 50, 300), height: 200 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={studentResults} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                <XAxis dataKey="date" stroke="#9CA3AF" tick={{fill: '#9CA3AF', fontSize: 10}} interval={0} />
+                                <YAxis stroke="#9CA3AF" domain={[0, 10]} tick={{fill: '#9CA3AF', fontSize: 10}} />
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#F3F4F6' }}
+                                    itemStyle={{ color: '#818CF8' }}
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey={studentChartMetric} 
+                                    stroke="#818CF8" 
+                                    strokeWidth={3} 
+                                    dot={{r: 4, fill: '#818CF8'}}
+                                    activeDot={{ r: 6 }} 
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* EXAM HISTORY */}
+        <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+             <div className="p-3 border-b border-gray-700 bg-gray-900 flex justify-between items-center">
+                <h3 className="text-gray-200 font-semibold text-sm">Deneme Geçmişi</h3>
+             </div>
+             <div className="overflow-x-auto">
+                <table className="w-full text-left text-gray-300">
+                    <thead className="text-xs uppercase bg-gray-900 text-gray-400">
+                        <tr>
+                            <th className="px-2 py-2 cursor-pointer hover:text-white" onClick={() => handleSort(sortExamHistory, setSortExamHistory, 'def.date')}>Tarih <ArrowUpDown size={10} className="inline"/></th>
+                            <th className="px-2 py-2">Deneme</th>
+                            <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortExamHistory, setSortExamHistory, 'result.correct')}>D <ArrowUpDown size={10} className="inline"/></th>
+                            <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortExamHistory, setSortExamHistory, 'result.incorrect')}>Y <ArrowUpDown size={10} className="inline"/></th>
+                            <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortExamHistory, setSortExamHistory, 'result.net')}>Net <ArrowUpDown size={10} className="inline"/></th>
+                            <th className="px-2 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700 text-sm">
+                        {sortedFullHistory.map((item, idx) => {
+                             const isMissing = !item.result || item.result.status === 'MISSING';
+                             return (
+                                <tr key={item.def.id} className="hover:bg-gray-700/50">
+                                    <td className="px-2 py-2 text-xs text-gray-400">{formatDate(item.def.date)}</td>
+                                    <td className="px-2 py-2 text-white">{item.def.name}</td>
+                                    <td className="px-2 py-2 text-center text-green-400">{isMissing ? '-' : item.result?.correct}</td>
+                                    <td className="px-2 py-2 text-center text-red-400">{isMissing ? '-' : item.result?.incorrect}</td>
+                                    <td className="px-2 py-2 text-center font-bold text-indigo-400">
+                                        {isMissing ? (item.result ? 'G' : '-') : item.result?.net}
+                                    </td>
+                                    <td className="px-2 py-2 text-right">
+                                        {item.result ? (
+                                            <button onClick={() => handleOpenExamModal(item.result)} className="text-indigo-400 hover:text-indigo-300 text-xs px-2 py-1 border border-gray-600 rounded">
+                                                Dzn
+                                            </button>
                                         ) : (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleOpenExamModal(undefined, def.id); }}
-                                                className="px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded transition pointer-events-auto"
-                                            >
+                                            <button onClick={() => handleOpenExamModal(undefined, item.def.id)} className="text-green-400 hover:text-green-300 text-xs px-2 py-1 border border-gray-600 rounded">
                                                 Ekle
                                             </button>
                                         )}
-                                    </div>
-                                </td>
-                            </tr>
-                        );
-                    })}
-                  </tbody>
-                </table>
-             </div>
-        </div>
-        <ExamModal
-          isOpen={isExamModalOpen}
-          onClose={() => { setIsExamModalOpen(false); setEditingExamResult(null); setPreselectedExamDefId(null); }}
-          onSave={handleSaveExam}
-          studentId={selectedStudentId}
-          examDefinitions={examDefinitions}
-          initialData={editingExamResult}
-          preselectedExamDefId={preselectedExamDefId}
-          existingExamIds={existingExamIds}
-        />
-      </div>
-    );
-  };
-
-  const renderClassDetail = () => {
-    const classroom = classes.find(c => c.id === selectedClassId);
-    if (!classroom) return null;
-
-    const classStudents = students.filter(s => s.classroomId === classroom.id).map(student => {
-        let targetExam: ExamResult | undefined;
-        let prevExam: ExamResult | undefined;
-
-        const studentExams = exams.filter(e => e.studentId === student.id && e.status !== 'MISSING')
-                             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        if (classDetailExamFilter === 'last') {
-            targetExam = studentExams[0];
-            prevExam = studentExams[1];
-        } else if (classDetailExamFilter === 'all') {
-            if (studentExams.length > 0) {
-               const avgC = studentExams.reduce((s,e) => s + e.correct, 0) / studentExams.length;
-               const avgI = studentExams.reduce((s,e) => s + e.incorrect, 0) / studentExams.length;
-               const avgN = studentExams.reduce((s,e) => s + e.net, 0) / studentExams.length;
-               targetExam = {
-                   id: 'avg',
-                   studentId: student.id,
-                   examName: 'Ortalama',
-                   date: '',
-                   correct: parseFloat(avgC.toFixed(1)),
-                   incorrect: parseFloat(avgI.toFixed(1)),
-                   empty: 0,
-                   net: parseFloat(avgN.toFixed(2))
-               } as ExamResult;
-            }
-        } else {
-            targetExam = studentExams.find(e => e.examId === classDetailExamFilter);
-            const currentIndex = studentExams.findIndex(e => e.examId === classDetailExamFilter);
-            if (currentIndex !== -1 && currentIndex < studentExams.length - 1) {
-                prevExam = studentExams[currentIndex + 1];
-            }
-        }
-        
-        return {
-            ...student,
-            targetExam,
-            prevExam
-        };
-    });
-
-    const sortedClassStudents = sortData<any>(classStudents, sortClassStudents);
-
-    const avgNet = classStudents.filter(s => s.targetExam).length > 0 
-      ? (classStudents.reduce((sum, s) => sum + (s.targetExam?.net || 0), 0) / classStudents.filter(s => s.targetExam).length).toFixed(2)
-      : '0.00';
-
-    return (
-      <div className="space-y-4 pb-20 md:pb-0">
-        <button 
-          onClick={() => setView('CLASSES')}
-          className="flex items-center text-gray-400 hover:text-indigo-400 transition text-sm mb-2"
-        >
-          <ArrowLeft size={16} className="mr-1" /> Sınıflara Dön
-        </button>
-
-        <div className="bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-700 flex flex-col gap-3">
-             <div className="flex justify-between items-center">
-                 <h2 className="text-xl font-bold text-gray-100">{classroom.name}</h2>
-                 <div className="text-right">
-                    <span className="text-xs text-gray-400 block">Seçili Sınav Ort.</span>
-                    <span className="text-xl font-bold text-indigo-400">{avgNet}</span>
-                 </div>
-             </div>
-             
-             {/* Filter Bar */}
-             <div className="w-full">
-                 <label className="text-xs text-gray-500 mb-1 block">Görüntülenen Sınav</label>
-                 <select 
-                    value={classDetailExamFilter}
-                    onChange={(e) => setClassDetailExamFilter(e.target.value)}
-                    className="w-full bg-gray-700 border border-gray-600 text-white rounded-md py-2 px-2 text-sm outline-none"
-                 >
-                    <option value="last">Son Deneme (Varsayılan)</option>
-                    <option value="all">Tüm Sınavlar (Ortalama)</option>
-                    {examDefinitions.map(ed => (
-                        <option key={ed.id} value={ed.id}>{ed.name} ({formatDate(ed.date)})</option>
-                    ))}
-                 </select>
-             </div>
-        </div>
-
-        <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 overflow-hidden">
-             <div className="px-4 py-3 border-b border-gray-700 flex justify-between items-center">
-                <h3 className="text-sm font-bold text-gray-100">Öğrenci Sonuçları</h3>
-             </div>
-             <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-900 border-b border-gray-700">
-                    <tr>
-                      <th onClick={() => handleSort(sortClassStudents, setSortClassStudents, 'name')} className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase cursor-pointer">Ad Soyad <SortIcon active={sortClassStudents.key === 'name'} /></th>
-                      <th onClick={() => handleSort(sortClassStudents, setSortClassStudents, 'targetCorrect')} className="px-2 py-3 text-xs font-semibold text-yellow-500 uppercase cursor-pointer text-center" title="Hedef">Hedef <SortIcon active={sortClassStudents.key === 'targetCorrect'} /></th>
-                      <th onClick={() => handleSort(sortClassStudents, setSortClassStudents, 'targetExam.correct')} className="px-2 py-3 text-xs font-semibold text-green-400 uppercase text-center w-8 cursor-pointer">D <SortIcon active={sortClassStudents.key === 'targetExam.correct'} /></th>
-                      <th onClick={() => handleSort(sortClassStudents, setSortClassStudents, 'targetExam.incorrect')} className="px-2 py-3 text-xs font-semibold text-red-400 uppercase text-center w-8 cursor-pointer">Y <SortIcon active={sortClassStudents.key === 'targetExam.incorrect'} /></th>
-                      <th onClick={() => handleSort(sortClassStudents, setSortClassStudents, 'targetExam.net')} className="px-2 py-3 text-xs font-semibold text-indigo-400 uppercase text-center cursor-pointer w-12">Net <SortIcon active={sortClassStudents.key === 'targetExam.net'} /></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700 text-gray-300">
-                    {sortedClassStudents.map((s: any) => {
-                      const res = s.targetExam;
-                      const prev = s.prevExam;
-                      const showTrend = classDetailExamFilter !== 'all';
-
-                      return (
-                      <tr key={s.id} className="hover:bg-gray-700/50 cursor-pointer" onClick={() => navigateToStudent(s.id)}>
-                        <td className="px-4 py-3 text-sm font-medium text-indigo-300">
-                             <div>{s.name} {s.surname}</div>
-                             <div className="text-[10px] text-gray-500">{res ? res.examName : 'Sonuç Yok'}</div>
-                        </td>
-                        <td className="px-2 py-3 text-center text-sm font-medium text-yellow-500">
-                             {s.targetCorrect}
-                        </td>
-                        <td className="px-2 py-3 text-center text-sm text-green-400 font-medium">
-                            {res ? (
-                                <span>{res.correct} {showTrend && renderTrend(res.correct, prev?.correct)}</span>
-                            ) : '-'}
-                        </td>
-                        <td className="px-2 py-3 text-center text-sm text-red-400 font-medium">
-                            {res ? (
-                                <span>{res.incorrect} {showTrend && renderTrend(res.incorrect, prev?.incorrect)}</span>
-                            ) : '-'}
-                        </td>
-                        <td className="px-2 py-3 text-center text-sm text-indigo-300 font-bold">
-                             {res ? (
-                                <span>{res.net} {showTrend && renderTrend(res.net, prev?.net)}</span>
-                            ) : '-'}
-                        </td>
-                      </tr>
-                    )})}
-                    {sortedClassStudents.length === 0 && (
-                      <tr><td colSpan={5} className="p-6 text-center text-gray-500 text-sm">Öğrenci yok.</td></tr>
-                    )}
-                  </tbody>
+                                    </td>
+                                </tr>
+                             );
+                        })}
+                    </tbody>
                 </table>
              </div>
         </div>
       </div>
     );
   };
-
-  const renderClasses = () => (
-    <div className="space-y-4 pb-20 md:pb-0">
-      <div className="flex justify-between items-center bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-700">
-        <h2 className="text-lg font-bold text-gray-100">Sınıflar</h2>
-        <button
-          onClick={handleAddClass}
-          className="flex items-center gap-1 bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700 transition text-sm"
-        >
-          <Plus size={16} /> Ekle
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {classes.map(c => {
-          const studentCount = students.filter(s => s.classroomId === c.id).length;
-          return (
-            <div 
-              key={c.id} 
-              onClick={() => { setSelectedClassId(c.id); setView('CLASS_DETAIL'); }}
-              className="bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-700 hover:bg-gray-750 transition cursor-pointer relative group"
-            >
-              <div className="absolute top-2 right-2 flex gap-1">
-                 <button
-                  onClick={(e) => { e.stopPropagation(); handleEditClass(c.id, c.name); }}
-                  className="text-gray-600 hover:text-blue-400 transition pointer-events-auto p-1"
-                >
-                  <Edit size={16} />
-                </button>
-                 <button
-                  onClick={(e) => { e.stopPropagation(); handleDeleteClass(c.id); }}
-                  className="text-gray-600 hover:text-red-400 transition pointer-events-auto p-1"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-              <h3 className="text-xl font-bold text-gray-100 mb-1">{c.name}</h3>
-              <p className="text-gray-400 text-xs">{studentCount} Öğrenci</p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 
   const renderExams = () => {
-    const examTableData = examDefinitions.map(def => {
-        const examResults = exams.filter(e => e.examId === def.id || e.examName === def.name);
-        const effectiveResults = examResults.filter(e => e.status !== 'MISSING');
-        const avg = effectiveResults.length > 0
-            ? (effectiveResults.reduce((s, e) => s + e.net, 0) / effectiveResults.length).toFixed(2)
-            : '-';
-        return {
-            ...def,
-            attendeesCount: effectiveResults.length,
-            avgNet: avg === '-' ? -1 : parseFloat(avg),
-            displayAvg: avg
-        };
-    });
-
-    const sortedExams = sortData<any>(examTableData, sortExamList);
+    // Sort logic
+    const sortedDefs = sortData(examDefinitions, sortExamList);
 
     return (
-    <div className="space-y-4 pb-20 md:pb-0">
-      <div className="flex flex-col gap-3 bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-700">
-        <div className="flex justify-between items-center">
-             <h2 className="text-lg font-bold text-gray-100">Denemeler</h2>
-             <button
-                onClick={handleAddExamDefinition}
-                className="flex items-center gap-1 bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700 transition text-sm"
-             >
-                <Plus size={16} /> Yeni
-             </button>
+      <div className="space-y-4 pb-safe">
+        <div className="flex justify-between items-center mb-2">
+            <h2 className="text-xl font-bold text-white">Denemeler</h2>
+            <button 
+                onClick={handleAddExamDefinition} 
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2"
+            >
+                <Plus size={16} /> Yeni Deneme
+            </button>
         </div>
-      </div>
 
-      <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-900 border-b border-gray-700">
-               <tr>
-                 <th onClick={() => handleSort(sortExamList, setSortExamList, 'name')} className="px-3 py-3 text-xs font-semibold text-gray-400 uppercase cursor-pointer whitespace-nowrap">Deneme <SortIcon active={sortExamList.key === 'name'} /></th>
-                 <th onClick={() => handleSort(sortExamList, setSortExamList, 'date')} className="px-3 py-3 text-xs font-semibold text-gray-400 uppercase cursor-pointer whitespace-nowrap">Tarih <SortIcon active={sortExamList.key === 'date'} /></th>
-                 <th onClick={() => handleSort(sortExamList, setSortExamList, 'avgNet')} className="px-3 py-3 text-xs font-semibold text-gray-400 uppercase text-center cursor-pointer whitespace-nowrap">Ort. <SortIcon active={sortExamList.key === 'avgNet'} /></th>
-                 <th className="px-3 py-3 text-xs font-semibold text-gray-400 uppercase text-right">İşlem</th>
-               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-700 text-gray-300">
-              {sortedExams.map((def: any) => (
-                  <tr key={def.id} className="hover:bg-gray-700/50 transition" onClick={() => { setSelectedExamDefId(def.id); setView('EXAM_DETAIL'); }}>
-                    <td className="px-3 py-3 text-sm font-medium text-indigo-300 cursor-pointer">
-                        {def.name}
-                    </td>
-                    <td className="px-3 py-3 text-xs text-gray-400">{formatDate(def.date)}</td>
-                    <td className="px-3 py-3 text-center font-bold text-gray-300 text-sm">{def.displayAvg}</td>
-                    <td className="px-3 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleEditExamDefinition(def.id, def.name, def.date); }}
-                          className="text-blue-400 hover:text-blue-300 pointer-events-auto"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteExamDefinition(def.id); }}
-                          className="text-red-400 hover:text-red-300 pointer-events-auto"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              )}
-               {sortedExams.length === 0 && (
-                <tr><td colSpan={4} className="p-6 text-center text-gray-500 text-sm">Kayıt yok.</td></tr>
-              )}
-            </tbody>
-          </table>
+        <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-gray-300">
+                    <thead className="text-xs uppercase bg-gray-900 text-gray-400">
+                        <tr>
+                            <th className="px-4 py-3 cursor-pointer hover:text-white" onClick={() => handleSort(sortExamList, setSortExamList, 'name')}>Deneme Adı <ArrowUpDown size={10} className="inline"/></th>
+                            <th className="px-4 py-3 cursor-pointer hover:text-white" onClick={() => handleSort(sortExamList, setSortExamList, 'date')}>Tarih <ArrowUpDown size={10} className="inline"/></th>
+                            <th className="px-4 py-3 text-center">Katılım</th>
+                            <th className="px-4 py-3 text-center">Ortalama</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700 text-sm">
+                        {sortedDefs.map(def => {
+                            const results = exams.filter(e => e.examId === def.id || e.examName === def.name);
+                            const attended = results.filter(e => e.status !== 'MISSING');
+                            const avg = attended.length > 0 
+                                ? (attended.reduce((sum, e) => sum + e.net, 0) / attended.length).toFixed(2)
+                                : '-';
+                            
+                            return (
+                                <tr key={def.id} className="hover:bg-gray-700/50 transition-colors">
+                                    <td 
+                                        className="px-4 py-3 font-medium text-white cursor-pointer hover:underline"
+                                        onClick={() => handleNavigation('EXAM_DETAIL', { examDefId: def.id })}
+                                    >
+                                        {def.name}
+                                    </td>
+                                    <td className="px-4 py-3 text-gray-400">{formatDate(def.date)}</td>
+                                    <td className="px-4 py-3 text-center text-gray-300">{attended.length} / {results.length}</td>
+                                    <td className="px-4 py-3 text-center font-bold text-indigo-400">{avg}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+            {examDefinitions.length === 0 && (
+                <div className="p-8 text-center text-gray-500">Henüz deneme tanımlanmamış.</div>
+            )}
         </div>
       </div>
-    </div>
-  );
+    );
   };
 
   const renderExamDetail = () => {
-    const examDef = examDefinitions.find(e => e.id === selectedExamDefId);
-    if (!examDef) return null;
-    
-    // Original raw results
-    const rawResults = exams
-      .filter(e => e.examId === examDef.id || e.examName === examDef.name)
-      .map(result => {
-        const student = students.find(s => s.id === result.studentId);
-        return {
-          ...result,
-          studentName: student ? `${student.name} ${student.surname}` : '?',
-          className: student ? getClassName(student.classroomId) : '-',
-          classroomId: student ? student.classroomId : '',
-          target: student ? student.targetCorrect : 6
-        };
+      const def = examDefinitions.find(d => d.id === selectedExamDefId);
+      if (!def) return <div>Deneme bulunamadı</div>;
+
+      let results = exams.filter(e => e.examId === def.id || e.examName === def.name);
+      
+      // Filter by Class
+      if (filterExamDetailClassId !== 'all') {
+          results = results.filter(r => {
+             const s = students.find(student => student.id === r.studentId);
+             return s && s.classroomId === filterExamDetailClassId;
+          });
+      }
+
+      const attended = results.filter(e => e.status !== 'MISSING');
+      const avgCorrect = attended.length > 0 ? (attended.reduce((s, e) => s + e.correct, 0) / attended.length).toFixed(1) : '0';
+      const avgIncorrect = attended.length > 0 ? (attended.reduce((s, e) => s + e.incorrect, 0) / attended.length).toFixed(1) : '0';
+      const avgEmpty = attended.length > 0 ? (attended.reduce((s, e) => s + e.empty, 0) / attended.length).toFixed(1) : '0';
+      const avgNet = attended.length > 0 ? (attended.reduce((s, e) => s + e.net, 0) / attended.length).toFixed(2) : '0';
+
+      // Join with student data for table
+      const rows = results.map(r => {
+          const s = students.find(stu => stu.id === r.studentId);
+          return {
+              ...r,
+              studentName: s ? `${s.name} ${s.surname}` : 'Bilinmeyen',
+              className: s ? classes.find(c => c.id === s.classroomId)?.name || '-' : '-',
+              targetCorrect: s?.targetCorrect
+          };
       });
 
-    // Filter by class if selected
-    let filteredResults = rawResults;
-    if (filterExamDetailClassId !== 'all') {
-        filteredResults = rawResults.filter(r => r.classroomId === filterExamDetailClassId);
-    }
+      const sortedRows = sortData(rows, sortExamDetail);
 
-    const sortedResults = sortData<any>(filteredResults, sortExamDetail);
-    const effectiveResults = filteredResults.filter(r => r.status !== 'MISSING');
-    const totalStudents = effectiveResults.length;
-    const avgNet = totalStudents > 0 ? (effectiveResults.reduce((s, r) => s + r.net, 0) / totalStudents).toFixed(2) : '0';
-
-    return (
-      <div className="space-y-4 pb-20 md:pb-0">
-        <button 
-          onClick={() => setView('EXAMS')}
-          className="flex items-center text-gray-400 hover:text-indigo-400 transition text-sm mb-2"
-        >
-          <ArrowLeft size={16} className="mr-1" /> Denemelere Dön
-        </button>
-
-        <div className="bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-700">
-           <div className="flex justify-between items-center mb-4">
-               <div>
-                   <h2 className="text-lg font-bold text-gray-100">{examDef.name}</h2>
-                   <span className="text-xs text-gray-400">{formatDate(examDef.date)}</span>
-               </div>
-               {/* Filter Dropdown */}
-               <select 
-                  value={filterExamDetailClassId}
-                  onChange={(e) => setFilterExamDetailClassId(e.target.value)}
-                  className="bg-gray-700 border border-gray-600 text-white rounded-md py-1 px-2 text-xs outline-none"
-               >
-                   <option value="all">Sınıf: Tümü</option>
-                   {classes.map(c => (
-                       <option key={c.id} value={c.id}>{c.name}</option>
-                   ))}
-               </select>
-           </div>
-           
-           <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="bg-gray-700 p-2 rounded flex justify-between">
-                    <span className="text-gray-400">Katılım</span>
-                    <span className="font-bold text-white">{totalStudents}</span>
+      return (
+        <div className="space-y-4 pb-safe">
+             <div className="flex items-center justify-between mb-2">
+                <button onClick={handleBack} className="text-gray-400 hover:text-white flex items-center gap-1 text-sm">
+                    <ArrowLeft size={16} /> Geri
+                </button>
+                <h2 className="text-lg font-bold text-white">{def.name} Analizi</h2>
+                <div className="flex gap-2">
+                     <button 
+                        onClick={(e) => { e.stopPropagation(); handleEditExamDefinition(def.id, def.name, def.date); }}
+                        className="p-1.5 bg-gray-800 border border-gray-700 text-indigo-400 hover:bg-gray-700 rounded transition-colors"
+                    >
+                        <Edit size={16} />
+                    </button>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); handleDeleteExamDefinition(def.id); }}
+                        className="p-1.5 bg-gray-800 border border-gray-700 text-red-400 hover:bg-gray-700 rounded transition-colors"
+                    >
+                        <Trash2 size={16} />
+                    </button>
                 </div>
-                <div className="bg-gray-700 p-2 rounded flex justify-between">
-                    <span className="text-gray-400">Ort. Net</span>
-                    <span className="font-bold text-indigo-400">{avgNet}</span>
+            </div>
+
+            {/* DASHBOARD */}
+            <div className="grid grid-cols-4 gap-2 text-center bg-gray-800 p-3 rounded-lg border border-gray-700">
+                 <div>
+                    <div className="text-xs text-green-400">Ort. Doğru</div>
+                    <div className="text-lg font-bold text-white">{avgCorrect}</div>
+                 </div>
+                 <div>
+                    <div className="text-xs text-red-400">Ort. Yanlış</div>
+                    <div className="text-lg font-bold text-white">{avgIncorrect}</div>
+                 </div>
+                 <div>
+                    <div className="text-xs text-gray-400">Ort. Boş</div>
+                    <div className="text-lg font-bold text-white">{avgEmpty}</div>
+                 </div>
+                 <div>
+                    <div className="text-xs text-indigo-400">Ort. Net</div>
+                    <div className="text-xl font-bold text-white">{avgNet}</div>
+                 </div>
+            </div>
+
+            {/* LIST */}
+            <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                <div className="p-3 border-b border-gray-700 flex justify-between items-center bg-gray-900">
+                    <h3 className="text-gray-200 font-semibold text-sm">Sıralama Listesi</h3>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Sınıf:</span>
+                        <select 
+                            className="bg-gray-800 text-white text-xs p-1 rounded border border-gray-600 outline-none"
+                            value={filterExamDetailClassId}
+                            onChange={(e) => setFilterExamDetailClassId(e.target.value)}
+                        >
+                            <option value="all">Tümü</option>
+                            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </div>
                 </div>
-           </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-gray-300">
+                        <thead className="text-xs uppercase bg-gray-900 text-gray-400">
+                            <tr>
+                                <th className="px-2 py-2 cursor-pointer hover:text-white" onClick={() => handleSort(sortExamDetail, setSortExamDetail, 'studentName')}>Öğrenci <ArrowUpDown size={10} className="inline"/></th>
+                                <th className="px-2 py-2 cursor-pointer hover:text-white" onClick={() => handleSort(sortExamDetail, setSortExamDetail, 'className')}>Sınıf <ArrowUpDown size={10} className="inline"/></th>
+                                <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortExamDetail, setSortExamDetail, 'targetCorrect')}>Hdf <ArrowUpDown size={10} className="inline"/></th>
+                                <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortExamDetail, setSortExamDetail, 'correct')}>D <ArrowUpDown size={10} className="inline"/></th>
+                                <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortExamDetail, setSortExamDetail, 'incorrect')}>Y <ArrowUpDown size={10} className="inline"/></th>
+                                <th className="px-2 py-2 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortExamDetail, setSortExamDetail, 'net')}>Net <ArrowUpDown size={10} className="inline"/></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-700 text-sm">
+                            {sortedRows.map(row => (
+                                <tr key={row.id} onClick={() => handleNavigation('STUDENT_DETAIL', { studentId: row.studentId })} className="hover:bg-gray-700/50 cursor-pointer">
+                                    <td className="px-2 py-2 font-medium text-white">{row.studentName}</td>
+                                    <td className="px-2 py-2 text-xs">{row.className}</td>
+                                    <td className="px-2 py-2 text-center text-gray-400">{row.targetCorrect ?? '-'}</td>
+                                    <td className="px-2 py-2 text-center text-green-400">{row.status === 'MISSING' ? '-' : row.correct}</td>
+                                    <td className="px-2 py-2 text-center text-red-400">{row.status === 'MISSING' ? '-' : row.incorrect}</td>
+                                    <td className="px-2 py-2 text-center font-bold text-indigo-400">{row.status === 'MISSING' ? <span className="text-gray-500 text-xs">G</span> : row.net}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
+      );
+  }
 
-        <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 overflow-hidden">
-           <div className="overflow-x-auto">
-             <table className="w-full text-left">
-               <thead className="bg-gray-900 border-b border-gray-700">
-                 <tr>
-                   <th className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase w-8">#</th>
-                   <th onClick={() => handleSort(sortExamDetail, setSortExamDetail, 'studentName')} className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase cursor-pointer whitespace-nowrap">Öğrenci <SortIcon active={sortExamDetail.key === 'studentName'} /></th>
-                   <th onClick={() => handleSort(sortExamDetail, setSortExamDetail, 'target')} className="px-2 py-3 text-xs font-semibold text-yellow-500 uppercase text-center cursor-pointer" title="Hedef">Hedef <SortIcon active={sortExamDetail.key === 'target'} /></th>
-                   <th onClick={() => handleSort(sortExamDetail, setSortExamDetail, 'correct')} className="px-2 py-3 text-xs font-semibold text-green-400 uppercase text-center w-8 cursor-pointer">D <SortIcon active={sortExamDetail.key === 'correct'} /></th>
-                   <th onClick={() => handleSort(sortExamDetail, setSortExamDetail, 'incorrect')} className="px-2 py-3 text-xs font-semibold text-red-400 uppercase text-center w-8 cursor-pointer">Y <SortIcon active={sortExamDetail.key === 'incorrect'} /></th>
-                   <th onClick={() => handleSort(sortExamDetail, setSortExamDetail, 'net')} className="px-3 py-2 text-xs font-semibold text-indigo-400 uppercase text-center cursor-pointer">Net <SortIcon active={sortExamDetail.key === 'net'} /></th>
-                 </tr>
-               </thead>
-               <tbody className="divide-y divide-gray-700 text-gray-300">
-                 {sortedResults.map((r: any, index: number) => {
-                   const isMissing = r.status === 'MISSING';
-                   return (
-                    <tr key={r.id} className="hover:bg-gray-700/50" onClick={() => navigateToStudent(r.studentId)}>
-                        <td className="px-3 py-3 text-xs text-gray-500">{index + 1}</td>
-                        <td className="px-3 py-3 text-sm font-medium text-gray-200 cursor-pointer">
-                            <div>{r.studentName}</div>
-                            <div className="text-xs text-gray-500">{r.className}</div>
-                        </td>
-                        <td className="px-3 py-3 text-center text-sm font-medium text-yellow-500">
-                             {r.target}
-                        </td>
-                        <td className="px-3 py-3 text-center text-sm font-medium text-green-400">
-                            {isMissing ? '-' : r.correct}
-                        </td>
-                        <td className="px-3 py-3 text-center text-sm font-medium text-red-400">
-                            {isMissing ? '-' : r.incorrect}
-                        </td>
-                        <td className="px-3 py-3 text-center text-sm font-bold text-indigo-400">
-                            {isMissing ? <span className="text-red-400 text-xs">GİRMEDİ</span> : r.net}
-                        </td>
-                    </tr>
-                   );
-                 })}
-                 {sortedResults.length === 0 && (
-                   <tr><td colSpan={6} className="p-6 text-center text-gray-500 text-sm">Sonuç yok.</td></tr>
-                 )}
-               </tbody>
-             </table>
-           </div>
-        </div>
-      </div>
-    );
-  };
-
-  const navItems = [
-    { id: 'DASHBOARD', icon: LayoutDashboard, label: 'Özet' },
-    { id: 'STUDENTS', icon: Users, label: 'Öğrenci' },
-    { id: 'CLASSES', icon: Users, label: 'Sınıf' },
-    { id: 'EXAMS', icon: FileText, label: 'Deneme' },
-  ];
+  // --- MAIN RENDER ---
 
   if (isLoading) {
     return (
-        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-            <div className="text-indigo-400 animate-pulse font-medium">Veriler Yükleniyor...</div>
+      <div className="flex h-screen items-center justify-center bg-gray-900 text-white">
+        <div className="text-center">
+            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <p>Veriler Yükleniyor...</p>
         </div>
+      </div>
     );
   }
 
+  if (errorMsg) {
+      return (
+        <div className="flex h-screen items-center justify-center bg-gray-900 text-white p-4">
+            <div className="max-w-md bg-gray-800 p-6 rounded-lg border border-red-800 shadow-2xl">
+                <div className="flex items-center gap-3 text-red-500 mb-4">
+                    <AlertTriangle size={32} />
+                    <h2 className="text-xl font-bold">Erişim Hatası</h2>
+                </div>
+                <p className="text-gray-300 mb-4">{errorMsg}</p>
+                <div className="bg-black/30 p-3 rounded text-xs font-mono text-gray-400 mb-4 overflow-x-auto">
+                    Firestore Rules ayarlarınızın şu şekilde olduğundan emin olun:
+                    <br/><br/>
+                    allow read, write: if true;
+                </div>
+                <button onClick={() => window.location.reload()} className="w-full bg-indigo-600 py-2 rounded text-white hover:bg-indigo-700">
+                    Tekrar Dene
+                </button>
+            </div>
+        </div>
+      )
+  }
+
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col md:flex-row text-gray-100 font-sans">
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-56 bg-gray-800 border-r border-gray-700 flex-col fixed h-full z-10">
-        <div className="p-4 border-b border-gray-700 flex items-center justify-center">
-          <h1 className="text-lg font-bold text-gray-100 tracking-tight">EnglishNet</h1>
+    <div className="flex h-screen bg-gray-900 text-gray-100 font-sans overflow-hidden">
+      {/* MOBILE BOTTOM NAV */}
+      <div className="md:hidden fixed bottom-0 left-0 w-full bg-gray-800 border-t border-gray-700 flex justify-around p-2 pb-safe z-40">
+        <button onClick={() => handleNavigation('DASHBOARD')} className={`flex flex-col items-center p-1 ${view === 'DASHBOARD' ? 'text-indigo-400' : 'text-gray-500'}`}>
+            <LayoutDashboard size={20} />
+            <span className="text-[10px] mt-0.5">Özet</span>
+        </button>
+        <button onClick={() => handleNavigation('STUDENTS')} className={`flex flex-col items-center p-1 ${view === 'STUDENTS' || view === 'STUDENT_DETAIL' ? 'text-indigo-400' : 'text-gray-500'}`}>
+            <Users size={20} />
+            <span className="text-[10px] mt-0.5">Öğrenci</span>
+        </button>
+        <button onClick={() => handleNavigation('CLASSES')} className={`flex flex-col items-center p-1 ${view === 'CLASSES' || view === 'CLASS_DETAIL' ? 'text-indigo-400' : 'text-gray-500'}`}>
+            <Users size={20} className="scale-x-[-1]" />
+            <span className="text-[10px] mt-0.5">Sınıf</span>
+        </button>
+        <button onClick={() => handleNavigation('EXAMS')} className={`flex flex-col items-center p-1 ${view === 'EXAMS' || view === 'EXAM_DETAIL' ? 'text-indigo-400' : 'text-gray-500'}`}>
+            <FileText size={20} />
+            <span className="text-[10px] mt-0.5">Deneme</span>
+        </button>
+      </div>
+
+      {/* DESKTOP SIDEBAR */}
+      <div className="hidden md:flex flex-col w-64 bg-gray-800 border-r border-gray-700">
+        <div className="p-5 border-b border-gray-700">
+           <h1 className="text-xl font-bold text-white flex items-center gap-2">
+             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">E</div>
+             EnglishNet
+           </h1>
         </div>
-        <nav className="p-2 space-y-1 flex-1">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setView(item.id as ViewState)}
-              className={`flex items-center gap-3 w-full px-4 py-2 rounded-lg text-sm font-medium transition ${
-                view === item.id || (view.includes(item.id.slice(0, 4)) && item.id !== 'DASHBOARD')
-                  ? 'bg-gray-700 text-indigo-400' 
-                  : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-              }`}
-            >
-              <item.icon size={18} /> {item.label}
+        <nav className="flex-1 p-4 space-y-2">
+            <button onClick={() => handleNavigation('DASHBOARD')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${view === 'DASHBOARD' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
+                <LayoutDashboard size={20} />
+                <span>Özet</span>
             </button>
-          ))}
+            <button onClick={() => handleNavigation('STUDENTS')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${view === 'STUDENTS' || view === 'STUDENT_DETAIL' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
+                <Users size={20} />
+                <span>Öğrenciler</span>
+            </button>
+             <button onClick={() => handleNavigation('CLASSES')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${view === 'CLASSES' || view === 'CLASS_DETAIL' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
+                <Users size={20} className="scale-x-[-1]" />
+                <span>Sınıflar</span>
+            </button>
+             <button onClick={() => handleNavigation('EXAMS')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${view === 'EXAMS' || view === 'EXAM_DETAIL' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
+                <FileText size={20} />
+                <span>Denemeler</span>
+            </button>
         </nav>
-      </aside>
+      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 md:ml-56 p-3 md:p-6 max-w-full overflow-hidden">
-        <div className="max-w-4xl mx-auto">
-          {view === 'DASHBOARD' && renderDashboard()}
-          {view === 'STUDENTS' && renderStudents()}
-          {view === 'STUDENT_DETAIL' && renderStudentDetail()}
-          {view === 'CLASSES' && renderClasses()}
-          {view === 'CLASS_DETAIL' && renderClassDetail()}
-          {view === 'EXAMS' && renderExams()}
-          {view === 'EXAM_DETAIL' && renderExamDetail()}
-        </div>
-      </main>
+      {/* MAIN CONTENT AREA */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden pb-safe md:pb-0">
+         {/* HEADER MOBILE */}
+         <div className="md:hidden bg-gray-800 p-4 border-b border-gray-700 flex justify-between items-center z-30 sticky top-0 pt-safe">
+            <h1 className="text-lg font-bold text-white">EnglishNet</h1>
+         </div>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 w-full bg-gray-800 border-t border-gray-700 flex justify-around p-2 z-50 safe-area-pb">
-        {navItems.map(item => (
-          <button
-            key={item.id}
-            onClick={() => setView(item.id as ViewState)}
-            className={`flex flex-col items-center p-1 rounded-lg text-[10px] font-medium transition ${
-              view === item.id || (view.includes(item.id.slice(0, 4)) && item.id !== 'DASHBOARD')
-                ? 'text-indigo-400' 
-                : 'text-gray-500'
-            }`}
-          >
-            <item.icon size={20} className="mb-0.5" />
-            {item.label}
-          </button>
-        ))}
-      </nav>
+         <div className="flex-1 overflow-y-auto p-3 md:p-6 mb-16 md:mb-0">
+            <div className="max-w-5xl mx-auto w-full">
+                {view === 'DASHBOARD' && renderDashboard()}
+                
+                {view === 'STUDENTS' && (
+                  <div className="space-y-4 pb-safe">
+                     <div className="flex justify-between items-center gap-2">
+                         <div className="relative flex-1">
+                            <Search className="absolute left-3 top-2.5 text-gray-500" size={18} />
+                            <input 
+                                type="text" 
+                                placeholder="Öğrenci Ara..." 
+                                className="w-full bg-gray-800 text-white pl-10 pr-4 py-2 rounded-lg border border-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                         </div>
+                         <button onClick={() => { setEditingStudent(null); setIsStudentModalOpen(true); }} className="bg-indigo-600 text-white p-2 rounded-lg shrink-0">
+                            <Plus size={24} />
+                         </button>
+                     </div>
+                     
+                     <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-gray-300">
+                                <thead className="text-xs uppercase bg-gray-900 text-gray-400">
+                                    <tr>
+                                        <th className="px-4 py-3 cursor-pointer hover:text-white" onClick={() => handleSort(sortStudents, setSortStudents, 'name')}>Ad Soyad <ArrowUpDown size={10} className="inline"/></th>
+                                        <th className="px-4 py-3 cursor-pointer hover:text-white" onClick={() => handleSort(sortStudents, setSortStudents, 'classroomId')}>Sınıf <ArrowUpDown size={10} className="inline"/></th>
+                                        <th className="px-4 py-3 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortStudents, setSortStudents, 'targetCorrect')}>Hedef <ArrowUpDown size={10} className="inline"/></th>
+                                        <th className="px-4 py-3 text-center cursor-pointer hover:text-white" onClick={() => handleSort(sortStudents, setSortStudents, 'lastNet')}>Son Net <ArrowUpDown size={10} className="inline"/></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-700 text-sm">
+                                    {filteredStudents.map(student => (
+                                        <tr key={student.id} onClick={() => handleNavigation('STUDENT_DETAIL', { studentId: student.id })} className="hover:bg-gray-700/50 cursor-pointer transition-colors">
+                                            <td className="px-4 py-3 font-medium text-white">{student.name} {student.surname}</td>
+                                            <td className="px-4 py-3">{classes.find(c => c.id === student.classroomId)?.name || '-'}</td>
+                                            <td className="px-4 py-3 text-center text-gray-400">{student.targetCorrect ?? '-'}</td>
+                                            <td className="px-4 py-3 text-center font-bold text-indigo-400">
+                                                {student.lastResult ? (student.lastResult.status === 'MISSING' ? <span className="text-gray-500 text-xs">G</span> : student.lastNet) : '-'}
+                                                {student.lastResult && student.previousResult && <span className="ml-2"><TrendIcon trend={getTrend(student.lastNet, student.previousResult?.net)} /></span>}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                     </div>
+                  </div>
+                )}
 
-      {/* Modals */}
-      {selectedStudentId && (
-        <ExamModal
-          isOpen={isExamModalOpen}
-          onClose={() => { setIsExamModalOpen(false); setEditingExamResult(null); setPreselectedExamDefId(null); }}
-          onSave={handleSaveExam}
-          studentId={selectedStudentId}
-          examDefinitions={examDefinitions}
-          initialData={editingExamResult}
-          preselectedExamDefId={preselectedExamDefId}
-          existingExamIds={studentsWithStats.find(s => s.id === selectedStudentId) 
-             ? exams.filter(e => e.studentId === selectedStudentId).map(e => e.examId || '') 
-             : []
-          }
-        />
-      )}
-      
+                {view === 'CLASSES' && (
+                  <div className="space-y-4 pb-safe">
+                     <div className="flex justify-between items-center mb-2">
+                        <h2 className="text-xl font-bold text-white">Sınıflar</h2>
+                        <button onClick={handleAddClass} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+                            <Plus size={16} /> Yeni Sınıf
+                        </button>
+                     </div>
+                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {classes.map(c => {
+                             const count = students.filter(s => s.classroomId === c.id).length;
+                             return (
+                                 <div 
+                                    key={c.id} 
+                                    className="bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-indigo-500 cursor-pointer transition-all relative group"
+                                    onClick={() => handleNavigation('CLASS_DETAIL', { classId: c.id })}
+                                 >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h3 className="text-lg font-bold text-white">{c.name}</h3>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleEditClass(c.id, c.name); }}
+                                            className="text-gray-500 hover:text-indigo-400 p-1"
+                                        >
+                                            <Edit size={14} className="pointer-events-none" />
+                                        </button>
+                                    </div>
+                                    <div className="flex justify-between items-end">
+                                        <span className="text-gray-400 text-sm">{count} Öğrenci</span>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteClass(c.id); }}
+                                            className="text-gray-600 hover:text-red-400 transition-colors p-1"
+                                        >
+                                            <Trash2 size={16} className="pointer-events-none" />
+                                        </button>
+                                    </div>
+                                 </div>
+                             )
+                        })}
+                     </div>
+                  </div>
+                )}
+
+                {view === 'CLASS_DETAIL' && renderClassDetail()}
+                {view === 'STUDENT_DETAIL' && renderStudentDetail()}
+                {view === 'EXAMS' && renderExams()}
+                {view === 'EXAM_DETAIL' && renderExamDetail()}
+
+            </div>
+         </div>
+      </div>
+
+      {/* MODALS */}
+      <ExamModal 
+        isOpen={isExamModalOpen} 
+        onClose={() => { setIsExamModalOpen(false); setEditingExamResult(null); setPreselectedExamDefId(null); }}
+        onSave={handleSaveExam}
+        studentId={selectedStudentId || ''}
+        examDefinitions={examDefinitions}
+        initialData={editingExamResult}
+        preselectedExamDefId={preselectedExamDefId}
+        existingExamIds={editingExamResult ? [] : exams.filter(e => e.studentId === selectedStudentId).map(e => e.examId || '')}
+      />
+
       <StudentFormModal
         isOpen={isStudentModalOpen}
         onClose={() => setIsStudentModalOpen(false)}
@@ -1599,31 +1862,24 @@ function App() {
         classes={classes}
         editingStudent={editingStudent}
       />
-
-      <BatchImportModal 
-        isOpen={isBatchModalOpen} 
-        onClose={() => setIsBatchModalOpen(false)} 
-        onProcess={handleBatchImport} 
-      />
-
+      
       <InputModal 
-        isOpen={inputModalConfig.isOpen}
-        onClose={() => setInputModalConfig({ ...inputModalConfig, isOpen: false })}
-        onSubmit={inputModalConfig.onSubmit}
-        title={inputModalConfig.title}
-        placeholder={inputModalConfig.placeholder}
-        initialValue={inputModalConfig.initialValue}
-        initialDate={inputModalConfig.initialDate}
-        showDatePicker={inputModalConfig.showDatePicker}
+        {...inputModalConfig} 
+        onClose={() => setInputModalConfig(prev => ({ ...prev, isOpen: false }))} 
+      />
+      
+      <ConfirmModal 
+        {...confirmModalConfig} 
+        onClose={() => setConfirmModalConfig(prev => ({ ...prev, isOpen: false }))} 
       />
 
-      <ConfirmModal 
-        isOpen={confirmModalConfig.isOpen}
-        onClose={() => setConfirmModalConfig({ ...confirmModalConfig, isOpen: false })}
-        onConfirm={confirmModalConfig.onConfirm}
-        title={confirmModalConfig.title}
-        message={confirmModalConfig.message}
+      <BatchImportModal
+        isOpen={isBatchModalOpen}
+        mode={batchModalMode}
+        onClose={() => setIsBatchModalOpen(false)}
+        onProcess={batchModalMode === 'student' ? handleBatchStudentImport : handleBatchResultImport}
       />
+      
     </div>
   );
 }

@@ -35,11 +35,38 @@ export const fetchAllData = async () => {
 // --- STUDENTS ---
 
 export const apiAddStudent = async (student: Student) => {
-  await setDoc(doc(db, STUDENTS_COL, student.id), student);
+  // STRICTLY PICK FIELDS to avoid "undefined" errors or extra UI fields
+  const payload: Record<string, any> = {
+    id: student.id,
+    name: student.name,
+    surname: student.surname,
+    classroomId: student.classroomId
+  };
+  
+  // Handle optional targetCorrect safely
+  if (student.targetCorrect !== undefined && student.targetCorrect !== null) {
+    payload.targetCorrect = student.targetCorrect;
+  } else {
+    payload.targetCorrect = 6; // Default
+  }
+
+  await setDoc(doc(db, STUDENTS_COL, student.id), payload);
 };
 
 export const apiUpdateStudent = async (student: Student) => {
-  await updateDoc(doc(db, STUDENTS_COL, student.id), { ...student });
+  // STRICTLY PICK FIELDS for update
+  // This removes 'previousResult', 'averageNet' etc. from StudentWithStats
+  const payload: Record<string, any> = {
+    name: student.name,
+    surname: student.surname,
+    classroomId: student.classroomId
+  };
+
+  if (student.targetCorrect !== undefined && student.targetCorrect !== null) {
+    payload.targetCorrect = student.targetCorrect;
+  }
+
+  await updateDoc(doc(db, STUDENTS_COL, student.id), payload);
 };
 
 export const apiDeleteStudent = async (id: string) => {
@@ -49,7 +76,8 @@ export const apiDeleteStudent = async (id: string) => {
 // --- CLASSES ---
 
 export const apiAddClass = async (classroom: Classroom) => {
-  await setDoc(doc(db, CLASSES_COL, classroom.id), classroom);
+  // Safe to spread as Classroom interface is simple
+  await setDoc(doc(db, CLASSES_COL, classroom.id), { ...classroom });
 };
 
 export const apiUpdateClass = async (classroom: Classroom) => {
@@ -63,11 +91,15 @@ export const apiDeleteClass = async (id: string) => {
 // --- EXAM RESULTS ---
 
 export const apiAddExamResult = async (result: ExamResult) => {
-  await setDoc(doc(db, EXAMS_COL, result.id), result);
+  // Sanitize to ensure no undefined fields
+  const payload = JSON.parse(JSON.stringify(result));
+  await setDoc(doc(db, EXAMS_COL, result.id), payload);
 };
 
 export const apiUpdateExamResult = async (result: ExamResult) => {
-  await updateDoc(doc(db, EXAMS_COL, result.id), { ...result });
+  // Sanitize to ensure no undefined fields
+  const payload = JSON.parse(JSON.stringify(result));
+  await updateDoc(doc(db, EXAMS_COL, result.id), payload);
 };
 
 export const apiDeleteExamResult = async (id: string) => {
@@ -77,7 +109,7 @@ export const apiDeleteExamResult = async (id: string) => {
 // --- EXAM DEFINITIONS ---
 
 export const apiAddExamDefinition = async (def: ExamDefinition) => {
-  await setDoc(doc(db, DEFINITIONS_COL, def.id), def);
+  await setDoc(doc(db, DEFINITIONS_COL, def.id), { ...def });
 };
 
 export const apiUpdateExamDefinition = async (def: ExamDefinition) => {
