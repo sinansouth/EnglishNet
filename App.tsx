@@ -247,10 +247,10 @@ interface SortConfig<T> {
   direction: SortDirection;
 }
 
-function sortData<T>(data: T[], config: SortConfig<T>): T[] {
+function sortData<T>(data: T[], config: SortConfig<any>): T[] {
   return [...data].sort((a: any, b: any) => {
-    const aVal = config.key.toString().split('.').reduce((o, i) => (o ? o[i] : undefined), a);
-    const bVal = config.key.toString().split('.').reduce((o, i) => (o ? o[i] : undefined), b);
+    const aVal = config.key.toString().split('.').reduce((o: any, i: any) => (o ? o[i] : undefined), a);
+    const bVal = config.key.toString().split('.').reduce((o: any, i: any) => (o ? o[i] : undefined), b);
 
     if (aVal === bVal) return 0;
     if (aVal === undefined || aVal === null) return 1;
@@ -990,7 +990,7 @@ function App() {
   // --- RENDER VIEWS ---
 
   const renderDashboard = () => (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-safe">
       {/* HEADER STATS */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
@@ -1098,7 +1098,7 @@ function App() {
         </div>
       </div>
 
-       <div className="flex justify-end gap-2 pb-safe">
+       <div className="flex justify-end gap-2">
             <button 
                 onClick={() => { setIsBatchModalOpen(true); setBatchModalMode('result'); }}
                 className="bg-green-700 hover:bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 shadow-lg shadow-green-900/20"
@@ -1652,7 +1652,7 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-900 text-white">
+      <div className="flex h-[100dvh] items-center justify-center bg-gray-900 text-white">
         <div className="text-center">
             <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
             <p>Veriler Yükleniyor...</p>
@@ -1663,7 +1663,7 @@ function App() {
 
   if (errorMsg) {
       return (
-        <div className="flex h-screen items-center justify-center bg-gray-900 text-white p-4">
+        <div className="flex h-[100dvh] items-center justify-center bg-gray-900 text-white p-4">
             <div className="max-w-md bg-gray-800 p-6 rounded-lg border border-red-800 shadow-2xl">
                 <div className="flex items-center gap-3 text-red-500 mb-4">
                     <AlertTriangle size={32} />
@@ -1684,7 +1684,7 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-900 text-gray-100 font-sans overflow-hidden">
+    <div className="flex h-[100dvh] bg-gray-900 text-gray-100 font-sans overflow-hidden">
       {/* MOBILE BOTTOM NAV */}
       <div className="md:hidden fixed bottom-0 left-0 w-full bg-gray-800 border-t border-gray-700 flex justify-around p-2 pb-safe z-40">
         <button onClick={() => handleNavigation('DASHBOARD')} className={`flex flex-col items-center p-1 ${view === 'DASHBOARD' ? 'text-indigo-400' : 'text-gray-500'}`}>
@@ -1734,13 +1734,13 @@ function App() {
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden pb-safe md:pb-0">
+      <div className="flex-1 flex flex-col h-full overflow-hidden pb-0 md:pb-0">
          {/* HEADER MOBILE */}
          <div className="md:hidden bg-gray-800 p-4 border-b border-gray-700 flex justify-between items-center z-30 sticky top-0 pt-safe">
             <h1 className="text-lg font-bold text-white">EnglishNet</h1>
          </div>
 
-         <div className="flex-1 overflow-y-auto p-3 md:p-6 mb-16 md:mb-0">
+         <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-24 md:pb-6">
             <div className="max-w-5xl mx-auto w-full">
                 {view === 'DASHBOARD' && renderDashboard()}
                 
