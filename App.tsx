@@ -1312,7 +1312,7 @@ function App() {
         };
     });
 
-    const sortedFullHistory = sortData(fullHistory, sortExamHistory);
+    const sortedFullHistory = sortData<{def: ExamDefinition, result?: ExamResult}>(fullHistory, sortExamHistory);
 
     return (
       <div className="space-y-4 pb-safe">
@@ -1467,7 +1467,7 @@ function App() {
 
   const renderExams = () => {
     // Sort logic
-    const sortedDefs = sortData(examDefinitions, sortExamList);
+    const sortedDefs = sortData<ExamDefinition>(examDefinitions, sortExamList);
 
     return (
       <div className="space-y-4 pb-safe">
@@ -1556,7 +1556,7 @@ function App() {
           };
       });
 
-      const sortedRows = sortData(rows, sortExamDetail);
+      const sortedRows = sortData<ExamResult & { studentName: string, className: string, targetCorrect?: number }>(rows, sortExamDetail);
 
       return (
         <div className="space-y-4 pb-safe">
