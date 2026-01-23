@@ -41,4 +41,4 @@ export interface StudentWithStats extends Student {
   previousResult?: ExamResult;
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'CLASSES' | 'CLASS_DETAIL' | 'STUDENT_DETAIL' | 'EXAMS' | 'EXAM_DETAIL';
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'CLASSES' | 'CLASS_DETAIL' | 'STUDENT_DETAIL' | 'EXAMS' | 'EXAM_DETAIL' | 'RESULTS';
