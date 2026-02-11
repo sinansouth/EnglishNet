@@ -1,5 +1,6 @@
+
 import { db } from './firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { Classroom, ExamResult, Student, ExamDefinition } from '../types';
 
 // Collection References
@@ -35,37 +36,21 @@ export const fetchAllData = async () => {
 // --- STUDENTS ---
 
 export const apiAddStudent = async (student: Student) => {
-  // STRICTLY PICK FIELDS to avoid "undefined" errors or extra UI fields
   const payload: Record<string, any> = {
     id: student.id,
     name: student.name,
     surname: student.surname,
     classroomId: student.classroomId
   };
-  
-  // Handle optional targetCorrect safely
-  if (student.targetCorrect !== undefined && student.targetCorrect !== null) {
-    payload.targetCorrect = student.targetCorrect;
-  } else {
-    payload.targetCorrect = 6; // Default
-  }
-
   await setDoc(doc(db, STUDENTS_COL, student.id), payload);
 };
 
 export const apiUpdateStudent = async (student: Student) => {
-  // STRICTLY PICK FIELDS for update
-  // This removes 'previousResult', 'averageNet' etc. from StudentWithStats
   const payload: Record<string, any> = {
     name: student.name,
     surname: student.surname,
     classroomId: student.classroomId
   };
-
-  if (student.targetCorrect !== undefined && student.targetCorrect !== null) {
-    payload.targetCorrect = student.targetCorrect;
-  }
-
   await updateDoc(doc(db, STUDENTS_COL, student.id), payload);
 };
 
@@ -73,10 +58,17 @@ export const apiDeleteStudent = async (id: string) => {
   await deleteDoc(doc(db, STUDENTS_COL, id));
 };
 
+export const apiDeleteMultipleStudents = async (ids: string[]) => {
+  const batch = writeBatch(db);
+  ids.forEach(id => {
+    batch.delete(doc(db, STUDENTS_COL, id));
+  });
+  await batch.commit();
+};
+
 // --- CLASSES ---
 
 export const apiAddClass = async (classroom: Classroom) => {
-  // Safe to spread as Classroom interface is simple
   await setDoc(doc(db, CLASSES_COL, classroom.id), { ...classroom });
 };
 
@@ -91,13 +83,11 @@ export const apiDeleteClass = async (id: string) => {
 // --- EXAM RESULTS ---
 
 export const apiAddExamResult = async (result: ExamResult) => {
-  // Sanitize to ensure no undefined fields
   const payload = JSON.parse(JSON.stringify(result));
   await setDoc(doc(db, EXAMS_COL, result.id), payload);
 };
 
 export const apiUpdateExamResult = async (result: ExamResult) => {
-  // Sanitize to ensure no undefined fields
   const payload = JSON.parse(JSON.stringify(result));
   await updateDoc(doc(db, EXAMS_COL, result.id), payload);
 };

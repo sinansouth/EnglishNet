@@ -17,19 +17,16 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
   const [classroomId, setClassroomId] = useState('');
-  const [targetCorrect, setTargetCorrect] = useState<string>('');
 
   useEffect(() => {
     if (editingStudent) {
       setName(editingStudent.name);
       setSurname(editingStudent.surname);
       setClassroomId(editingStudent.classroomId);
-      setTargetCorrect(editingStudent.targetCorrect ? editingStudent.targetCorrect.toString() : '');
     } else {
       setName('');
       setSurname('');
       setClassroomId(classes.length > 0 ? classes[0].id : '');
-      setTargetCorrect('');
     }
   }, [editingStudent, classes, isOpen]);
 
@@ -38,8 +35,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
     const studentData = {
       name, 
       surname, 
-      classroomId,
-      targetCorrect: targetCorrect ? parseInt(targetCorrect) : undefined
+      classroomId
     };
 
     if (editingStudent) {
@@ -88,8 +84,7 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+          <div>
               <label className="block text-xs font-medium text-gray-400 mb-1">Sınıf</label>
               <select
                 required
@@ -102,20 +97,6 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                 ))}
               </select>
             </div>
-            <div>
-               <label className="block text-xs font-medium text-gray-400 mb-1">Hedef (Doğru)</label>
-               <input
-                type="number"
-                min="0"
-                max="10"
-                step="1"
-                value={targetCorrect}
-                onChange={(e) => setTargetCorrect(e.target.value)}
-                placeholder="Örn: 6"
-                className="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 text-white placeholder-gray-500"
-              />
-            </div>
-          </div>
 
           <div className="pt-2">
             <button

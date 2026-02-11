@@ -28,7 +28,6 @@ export interface Student {
   name: string;
   surname: string;
   classroomId: string;
-  targetCorrect?: number; // Changed from targetNet
 }
 
 export interface StudentWithStats extends Student {
@@ -41,4 +40,4 @@ export interface StudentWithStats extends Student {
   previousResult?: ExamResult;
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'CLASSES' | 'CLASS_DETAIL' | 'STUDENT_DETAIL' | 'EXAMS' | 'EXAM_DETAIL' | 'RESULTS';
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'CLASSES' | 'CLASS_DETAIL' | 'STUDENT_DETAIL' | 'EXAMS' | 'EXAM_DETAIL' | 'RESULTS' | 'ANALYTICS';
